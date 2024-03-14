@@ -21,16 +21,17 @@ def visualize_robot(
     plant, scene_graph = AddMultibodyPlantSceneGraph(builder, time_step=0)
 
     base_path = os.path.realpath(os.path.dirname(__file__))
-    h1_path = os.path.join(base_path, "..", "robot_models", "h1_description")
+    h1_desc_path = os.path.join(base_path, "..", "robot_models", "h1_description")
+    h1_model_path = os.path.join(h1_desc_path, "drake_urdf", "h1.urdf")
     parser = Parser(plant)
     package_map = parser.package_map()
     package_map.Add(
         package_name="h1_description",
-        package_path=h1_path,
+        package_path=h1_desc_path,
     )
 
     assert package_map.Contains("h1_description")
-    h1_model = parser.AddModels(h1_path)[0]
+    h1_model = parser.AddModels(h1_model_path)[0]
 
     plant.Finalize()
     print("Num positions:", plant.num_positions())
