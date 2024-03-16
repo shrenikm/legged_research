@@ -57,6 +57,7 @@ def visualize_robot(
                 radius=0.001,
             )
 
+
     diagram = builder.Build()
     sliders.Run(diagram, None)
 
