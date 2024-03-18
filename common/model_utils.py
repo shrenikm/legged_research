@@ -1,12 +1,19 @@
 import os
+from typing import Optional
 
-from pydrake.multibody.parsing import PackageMap
+import numpy as np
+from pydrake.multibody.parsing import PackageMap, Parser
+from pydrake.multibody.plant import MultibodyPlant
+from pydrake.multibody.tree import ModelInstanceIndex
 
 from common.class_utils import StrEnum
-from common.custom_types import DirName, DirPath, FilePath
+from common.custom_types import DirName, DirPath, FilePath, PositionsVector
 
 ROBOT_MODELS_DIRNAME = "robot_models"
 URDF_DESCRIPTION_EXTENSION = "urdf"
+
+H1_DESCRIPTION_DIRNAME = "h1_description"
+DRAKE_URDF_DIRNAME = "drake_urdf"
 
 
 class LeggedModelType(StrEnum):
@@ -44,10 +51,16 @@ def add_robot_models_to_package_map(package_map: PackageMap) -> None:
         )
 
 
-def get_description_subdir_from_legged_model_type(
+def get_description_dirname_for_legged_model_type(
     legged_model_type: LeggedModelType,
 ) -> DirPath:
-    return {LeggedModelType.H1: "h1_description/drake_urdf"}[legged_model_type]
+    return {LeggedModelType.H1: H1_DESCRIPTION_DIRNAME}[legged_model_type]
+
+
+def get_description_subdir_for_legged_model_type(
+    legged_model_type: LeggedModelType,
+) -> DirPath:
+    return {LeggedModelType.H1: os.path.join(DRAKE_URDF_DIRNAME)}[legged_model_type]
 
 
 def get_legged_model_urdf_path(legged_model_type: LeggedModelType) -> FilePath:
@@ -56,8 +69,96 @@ def get_legged_model_urdf_path(legged_model_type: LeggedModelType) -> FilePath:
 
     return os.path.join(
         get_robot_models_directory_path(),
-        get_description_subdir_from_legged_model_type(
+        get_description_dirname_for_legged_model_type(
+            legged_model_type=legged_model_type
+        ),
+        get_description_subdir_for_legged_model_type(
             legged_model_type=legged_model_type
         ),
         urdf_filename,
     )
+
+
+def get_num_positions_for_legged_model_type(
+    legged_model_type: LeggedModelType,
+) -> int:
+    return {
+        LeggedModelType.H1: 26,
+    }[legged_model_type]
+
+
+def get_num_velocities_for_legged_model_type(
+    legged_model_type: LeggedModelType,
+) -> int:
+    return {
+        LeggedModelType.H1: 25,
+    }[legged_model_type]
+
+
+def get_num_actuators_for_legged_model_type(
+    legged_model_type: LeggedModelType,
+) -> int:
+    return {
+        LeggedModelType.H1: 19,
+    }[legged_model_type]
+
+
+def get_default_positions_for_legged_model_type(
+    legged_model_type: LeggedModelType,
+) -> PositionsVector:
+
+    h1_default_positions = np.zeros(
+        get_num_positions_for_legged_model_type(legged_model_type=LeggedModelType.H1),
+        dtype=np.float64,
+    )
+    # Setting the unit quaternion of the floating base.
+    h1_default_positions[0] = 1.0
+    # Set z height so that the robot stands on the ground.
+    h1_default_positions[3] = 0.98
+
+    # Bend the hip pitch, knees and ankle of both legs.
+    h1_default_positions[9] = -0.4
+    h1_default_positions[10] = 0.8
+    h1_default_positions[11] = -0.4
+    h1_default_positions[14] = -0.4
+    h1_default_positions[15] = 0.8
+    h1_default_positions[16] = -0.4
+
+    return {
+        LeggedModelType.H1: h1_default_positions,
+    }[legged_model_type]
+
+
+def add_legged_model_to_plant(
+    plant: MultibodyPlant,
+    legged_model_type: LeggedModelType,
+    parser: Optional[Parser] = None,
+) -> ModelInstanceIndex:
+    """
+    Adds the model specified by the model type to the plant using the parser.
+    If the parser is not given, one is constructed from the plant and robot_models is added to its package map.
+    If the parser given does not contain the robot_models in the package map, it is added as well.
+    """
+
+    if parser is None:
+        parser = Parser(plant)
+        package_map = parser.package_map()
+        add_robot_models_to_package_map(package_map=package_map)
+    else:
+        package_map = parser.package_map()
+        description_dirname = get_description_subdir_for_legged_model_type(
+            legged_model_type=legged_model_type,
+        )
+        if not package_map.Contains(description_dirname):
+            add_robot_models_to_package_map(package_map=package_map)
+
+    legged_model = parser.AddModels(
+        get_legged_model_urdf_path(legged_model_type=legged_model_type),
+    )[0]
+    plant.SetDefaultPositions(
+        q=get_default_positions_for_legged_model_type(
+            legged_model_type=legged_model_type,
+        ),
+    )
+
+    return legged_model
