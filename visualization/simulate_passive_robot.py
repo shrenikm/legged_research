@@ -36,6 +36,7 @@ def simulate_passive_robot(
         plant=plant,
         legged_model_type=legged_model_type,
     )
+    plant.GetBodyByName("left_ankle_link")
 
     AddDefaultVisualization(builder=builder, meshcat=meshcat)
     diagram = builder.Build()

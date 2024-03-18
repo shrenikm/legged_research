@@ -21,6 +21,10 @@ NpVectorNf64 = Annotated[npt.NDArray[f64], Literal["N"]]
 NpVector1f64 = Annotated[npt.NDArray[f64], Literal["1"]]
 NpVector2f64 = Annotated[npt.NDArray[f64], Literal["2"]]
 NpVector3f64 = Annotated[npt.NDArray[f64], Literal["3"]]
+NpArrayN2f64 = Annotated[npt.NDArray[f64], Literal["N,2"]]
+NpArrayN3f64 = Annotated[npt.NDArray[f64], Literal["N,3"]]
+NpArrayNNf64 = Annotated[npt.NDArray[f64], Literal["N,N"]]
+NpArrayMNf64 = Annotated[npt.NDArray[f64], Literal["M,N"]]
 
 # Time stuff.
 TimesVector = NpVectorNf64  # Time in seconds
@@ -30,3 +34,9 @@ PositionsVector = NpVectorNf64
 VelocitiesVector = NpVectorNf64
 StateVector = NpVectorNf64
 GainsVector = NpVectorNf64
+
+# Geometry
+PolygonArray = NpArrayN2f64
+
+# Trajectories.
+XYPath = NpArrayN2f64
