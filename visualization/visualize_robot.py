@@ -11,8 +11,15 @@ from pydrake.multibody.plant import MultibodyPlant
 from pydrake.multibody.tree import RigidBody
 from pydrake.visualization import AddDefaultVisualization, AddFrameTriadIllustration
 
+from common.model_utils import (
+    LeggedModelType,
+    add_robot_models_to_package_map,
+    get_legged_model_urdf_path,
+)
+
 
 def visualize_robot(
+    legged_model_type: LeggedModelType,
     show_frames: bool = False,
 ) -> None:
     builder = DiagramBuilder()
@@ -20,14 +27,13 @@ def visualize_robot(
     plant: MultibodyPlant
     plant, scene_graph = AddMultibodyPlantSceneGraph(builder, time_step=0)
 
-    base_path = os.path.realpath(os.path.dirname(__file__))
-    h1_desc_path = os.path.join(base_path, "..", "robot_models", "h1_description")
-    h1_model_path = os.path.join(h1_desc_path, "drake_urdf", "h1.urdf")
     parser = Parser(plant)
     package_map = parser.package_map()
-    package_map.Add(
-        package_name="h1_description",
-        package_path=h1_desc_path,
+    add_robot_models_to_package_map(
+        package_map=package_map,
+    )
+    h1_model_path = get_legged_model_urdf_path(
+        legged_model_type=legged_model_type,
     )
 
     assert package_map.Contains("h1_description")
@@ -57,7 +63,6 @@ def visualize_robot(
                 radius=0.001,
             )
 
-
     diagram = builder.Build()
     sliders.Run(diagram, None)
 
@@ -66,7 +71,9 @@ if __name__ == "__main__":
 
     meshcat = StartMeshcat()
 
+    legged_model_type = LeggedModelType.H1
     show_frames = False
     visualize_robot(
+        legged_model_type=legged_model_type,
         show_frames=show_frames,
     )
