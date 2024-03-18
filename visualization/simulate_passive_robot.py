@@ -2,6 +2,7 @@ import numpy as np
 from pydrake.all import AddMultibodyPlantSceneGraph, DiagramBuilder, StartMeshcat
 from pydrake.multibody.plant import (
     AddMultibodyPlant,
+    ContactModel,
     MultibodyPlant,
     MultibodyPlantConfig,
 )
@@ -24,13 +25,12 @@ def simulate_passive_robot(
 
     config = MultibodyPlantConfig(
         time_step=0.001,
-        contact_model="hydroelastic_with_fallback",
-        #contact_model="point",
     )
     plant, scene_graph = AddMultibodyPlant(
         config=config,
         builder=builder,
     )
+    plant.set_contact_model(ContactModel.kHydroelasticWithFallback)
 
     legged_model = add_legged_model_to_plant_and_finalize(
         plant=plant,
@@ -40,12 +40,7 @@ def simulate_passive_robot(
     AddDefaultVisualization(builder=builder, meshcat=meshcat)
     diagram = builder.Build()
 
-    def _monitor(context: Context) -> None:
-        #print(context.get_time())
-        ...
-
     simulator = Simulator(system=diagram)
-    simulator.set_monitor(monitor=_monitor)
     plant.get_actuation_input_port(model_instance=legged_model).FixValue(
         context=plant.GetMyContextFromRoot(root_context=simulator.get_context()),
         value=np.zeros(plant.num_actuators(), dtype=np.float64),
