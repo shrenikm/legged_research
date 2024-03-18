@@ -9,15 +9,31 @@ from pydrake.multibody.tree import ModelInstanceIndex
 from common.class_utils import StrEnum
 from common.custom_types import DirName, DirPath, FilePath, PositionsVector
 
+OBJECT_MODELS_DIRNAME = "object_models"
 ROBOT_MODELS_DIRNAME = "robot_models"
-URDF_DESCRIPTION_EXTENSION = "urdf"
 
 H1_DESCRIPTION_DIRNAME = "h1_description"
 DRAKE_URDF_DIRNAME = "drake_urdf"
 
 
+class ObjectModelType(StrEnum):
+    PLANE = "plane.sdf"
+
+
 class LeggedModelType(StrEnum):
-    H1 = "h1"
+    H1 = "h1.urdf"
+
+
+def get_object_models_directory_path() -> DirPath:
+    current_directory_path = os.path.dirname(
+        os.path.expanduser(os.path.realpath(__file__))
+    )
+    models_directory_path = os.path.join(
+        current_directory_path,
+        "..",
+        OBJECT_MODELS_DIRNAME,
+    )
+    return os.path.realpath(models_directory_path)
 
 
 def get_robot_models_directory_path() -> DirPath:
@@ -63,9 +79,18 @@ def get_description_subdir_for_legged_model_type(
     return {LeggedModelType.H1: os.path.join(DRAKE_URDF_DIRNAME)}[legged_model_type]
 
 
+def get_object_model_urdf_path(object_model_type: ObjectModelType) -> FilePath:
+    urdf_filename = object_model_type.value
+
+    return os.path.join(
+        get_object_models_directory_path(),
+        urdf_filename,
+    )
+
+
 def get_legged_model_urdf_path(legged_model_type: LeggedModelType) -> FilePath:
 
-    urdf_filename = legged_model_type.value + "." + URDF_DESCRIPTION_EXTENSION
+    urdf_filename = legged_model_type.value
 
     return os.path.join(
         get_robot_models_directory_path(),
@@ -114,7 +139,7 @@ def get_default_positions_for_legged_model_type(
     # Setting the unit quaternion of the floating base.
     h1_default_positions[0] = 1.0
     # Set z height so that the robot stands on the ground.
-    h1_default_positions[3] = 0.98
+    h1_default_positions[6] = 0.98
 
     # Bend the hip pitch, knees and ankle of both legs.
     h1_default_positions[9] = -0.4
@@ -152,11 +177,20 @@ def add_legged_model_to_plant(
         if not package_map.Contains(description_dirname):
             add_robot_models_to_package_map(package_map=package_map)
 
+    # Add the legged model.
     legged_model = parser.AddModels(
         get_legged_model_urdf_path(legged_model_type=legged_model_type),
     )[0]
+    # Add the plane.
+    parser.AddModels(
+        get_object_model_urdf_path(object_model_type=ObjectModelType.PLANE),
+    )
+
+    plant.Finalize()
+
     plant.SetDefaultPositions(
-        q=get_default_positions_for_legged_model_type(
+        model_instance=legged_model,
+        q_instance=get_default_positions_for_legged_model_type(
             legged_model_type=legged_model_type,
         ),
     )

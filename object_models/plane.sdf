@@ -1,0 +1,28 @@
+<sdf version='1.10'>
+  <model name='plane'>
+    <pose>0 0 0 0 0 0</pose>
+    <link name='plane_link'>
+      
+      <visual name='plane_visual'>
+        <geometry>
+          <plane>
+            <normal>0 0 1</normal>
+          </plane>
+        </geometry>
+      </visual>
+
+      <collision name='plane_collision'>
+        <geometry>
+          <plane>
+            <normal>0 0 1</normal>
+          </plane>
+        </geometry>
+        <drake:proximity_properties>
+          <drake:rigid_hydroelastic/>
+          <drake:hunt_crossley_dissipation>0.</drake:hunt_crossley_dissipation>
+        </drake:proximity_properties>
+      </collision>
+
+    </link>
+  </model>
+</sdf>
