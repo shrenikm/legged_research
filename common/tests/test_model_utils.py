@@ -6,7 +6,7 @@ from pydrake.multibody.tree import ModelInstanceIndex
 from common.model_utils import (
     LeggedModelType,
     ObjectModelType,
-    add_legged_model_to_plant,
+    add_legged_model_to_plant_and_finalize,
     get_default_positions_for_legged_model_type,
     get_description_dirname_for_legged_model_type,
     get_description_subdir_for_legged_model_type,
@@ -137,13 +137,13 @@ def test_get_default_positions_for_legged_model_type() -> None:
     )
 
 
-def test_add_legged_model_to_plant() -> None:
+def test_add_legged_model_to_plant_and_finalize() -> None:
 
     for legged_model_type in LeggedModelType:
 
         # With parser.
         plant = MultibodyPlant(time_step=0.001)
-        model = add_legged_model_to_plant(
+        model = add_legged_model_to_plant_and_finalize(
             plant=plant,
             legged_model_type=legged_model_type,
         )

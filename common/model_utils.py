@@ -154,7 +154,7 @@ def get_default_positions_for_legged_model_type(
     }[legged_model_type]
 
 
-def add_legged_model_to_plant(
+def add_legged_model_to_plant_and_finalize(
     plant: MultibodyPlant,
     legged_model_type: LeggedModelType,
     parser: Optional[Parser] = None,
