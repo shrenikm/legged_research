@@ -1,5 +1,7 @@
 from typing import List
+
 import numpy as np
+
 from common.custom_types import XYPath
 
 
@@ -47,4 +49,4 @@ def segment_path_indices(
         )
         segment_indices.append(segment_index)
 
-    return segment_indies
+    return segment_indices
