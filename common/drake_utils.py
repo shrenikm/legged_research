@@ -1,4 +1,5 @@
 import sys
+import time
 from contextlib import contextmanager
 from typing import Generator
 
@@ -24,7 +25,10 @@ def auto_meshcat_visualization(
     If False, plays the recording live.
     """
     if meshcat is not None and record:
-        meshcat.StartRecording(set_visualizations_while_recording=False)
+        meshcat.StartRecording(
+            frames_per_second=30.,
+            set_visualizations_while_recording=False,
+        )
     try:
         yield
     except KeyboardInterrupt as e:
@@ -35,3 +39,6 @@ def auto_meshcat_visualization(
     if meshcat is not None and record:
         meshcat.StopRecording()
         meshcat.PublishRecording()
+
+        # Delay to allow meshcat to finish publishing.
+        time.sleep(5.)

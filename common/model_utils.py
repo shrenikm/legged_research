@@ -17,7 +17,8 @@ DRAKE_URDF_DIRNAME = "drake_urdf"
 
 
 class ObjectModelType(StrEnum):
-    PLANE = "plane.sdf"
+    PLANE_HALFSPACE = "plane_halfspace.sdf"
+    PLANE_BOX = "plane_box.urdf"
 
 
 class LeggedModelType(StrEnum):
@@ -182,10 +183,12 @@ def add_legged_model_to_plant_and_finalize(
         get_legged_model_urdf_path(legged_model_type=legged_model_type),
     )[0]
     # Add the plane.
+    # TODO: PLANE_HALFSPACE segfaults for some reason.
     parser.AddModels(
-        get_object_model_urdf_path(object_model_type=ObjectModelType.PLANE),
+        get_object_model_urdf_path(object_model_type=ObjectModelType.PLANE_BOX),
     )
 
+    # We assume that the plane model already has itself welded to the world frame in the description file.
     plant.Finalize()
 
     plant.SetDefaultPositions(

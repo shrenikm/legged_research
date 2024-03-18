@@ -1,7 +1,12 @@
 import numpy as np
 from pydrake.all import AddMultibodyPlantSceneGraph, DiagramBuilder, StartMeshcat
-from pydrake.multibody.plant import MultibodyPlant
+from pydrake.multibody.plant import (
+    AddMultibodyPlant,
+    MultibodyPlant,
+    MultibodyPlantConfig,
+)
 from pydrake.systems.analysis import Simulator
+from pydrake.systems.framework import Context
 from pydrake.visualization import AddDefaultVisualization
 
 from common.drake_utils import auto_meshcat_visualization
@@ -12,29 +17,43 @@ def simulate_passive_robot(
     legged_model_type: LeggedModelType,
 ) -> None:
     meshcat = StartMeshcat()
+    meshcat.DeleteAddedControls()
     builder = DiagramBuilder()
 
     plant: MultibodyPlant
-    plant, scene_graph = AddMultibodyPlantSceneGraph(builder, time_step=0)
+
+    config = MultibodyPlantConfig(
+        time_step=0.001,
+        contact_model="hydroelastic_with_fallback",
+        #contact_model="point",
+    )
+    plant, scene_graph = AddMultibodyPlant(
+        config=config,
+        builder=builder,
+    )
 
     legged_model = add_legged_model_to_plant_and_finalize(
         plant=plant,
         legged_model_type=legged_model_type,
     )
 
-    meshcat.DeleteAddedControls()
     AddDefaultVisualization(builder=builder, meshcat=meshcat)
     diagram = builder.Build()
 
+    def _monitor(context: Context) -> None:
+        #print(context.get_time())
+        ...
+
     simulator = Simulator(system=diagram)
-    #plant.get_actuation_input_port(model_instance=legged_model).FixValue(
-    #    context=plant.GetMyContextFromRoot(root_context=simulator.get_context()),
-    #    value=np.zeros(plant.num_actuators(), dtype=np.float64),
-    #)
+    simulator.set_monitor(monitor=_monitor)
+    plant.get_actuation_input_port(model_instance=legged_model).FixValue(
+        context=plant.GetMyContextFromRoot(root_context=simulator.get_context()),
+        value=np.zeros(plant.num_actuators(), dtype=np.float64),
+    )
 
     with auto_meshcat_visualization(meshcat=meshcat, record=True):
         simulator.AdvanceTo(
-            boundary_time=5.0,
+            boundary_time=20.0,
             interruptible=True,
         )
 

@@ -1,5 +1,6 @@
 import numpy as np
 import pytest
+from pydrake.multibody.parsing import Parser
 from pydrake.multibody.plant import MultibodyPlant
 from pydrake.multibody.tree import ModelInstanceIndex
 
@@ -52,11 +53,11 @@ def test_get_description_subdir_for_legged_model_type() -> None:
 
 
 def test_get_object_model_urdf_path() -> None:
-    plane_sdf_filepath = get_object_model_urdf_path(
-        object_model_type=ObjectModelType.PLANE,
-    )
-    assert isinstance(plane_sdf_filepath, str)
-    assert plane_sdf_filepath.endswith(".sdf")
+    for object_model_type in ObjectModelType:
+        plane_sdf_filepath = get_object_model_urdf_path(
+            object_model_type=object_model_type,
+        )
+        assert isinstance(plane_sdf_filepath, str)
 
 
 def test_get_legged_model_urdf_path() -> None:
@@ -148,7 +149,26 @@ def test_add_legged_model_to_plant_and_finalize() -> None:
             legged_model_type=legged_model_type,
         )
         assert isinstance(model, ModelInstanceIndex)
-        print(model)
+
+
+def test_plane_models_are_welded() -> None:
+
+    for plane_model_type in [
+        ObjectModelType.PLANE_HALFSPACE,
+        ObjectModelType.PLANE_BOX,
+    ]:
+
+        plant = MultibodyPlant(time_step=0.001)
+        parser = Parser(plant)
+        parser.AddModels(
+            get_object_model_urdf_path(
+                object_model_type=plane_model_type,
+            )
+        )
+        plant.Finalize()
+
+        # If the plane has been welded, it will have 0 degrees of freedom.
+        assert plant.num_positions() == 0
 
 
 if __name__ == "__main__":

@@ -1,25 +1,28 @@
 <sdf version='1.10'>
-  <model name='plane'>
-    <pose>0 0 0 0 0 0</pose>
-    <link name='plane_link'>
+  <model name='plane_halfspace'>
+    <static>1</static>
+
+    <link name='plane_halfspace_link'>
       
-      <visual name='plane_visual'>
+      <visual name='plane_halfspace_visual'>
         <geometry>
           <plane>
             <normal>0 0 1</normal>
+            <size>10 10</size>
           </plane>
         </geometry>
       </visual>
 
-      <collision name='plane_collision'>
+      <collision name='plane_halfspace_collision'>
         <geometry>
           <plane>
             <normal>0 0 1</normal>
+            <size>10 10</size>
           </plane>
         </geometry>
         <drake:proximity_properties>
           <drake:rigid_hydroelastic/>
-          <drake:hunt_crossley_dissipation>0.</drake:hunt_crossley_dissipation>
+          <drake:mu_dynamic value="0.8"/>
         </drake:proximity_properties>
       </collision>
 
