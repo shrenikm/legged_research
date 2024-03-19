@@ -37,6 +37,8 @@ GainsVector = NpVectorNf64
 
 # Geometry
 PolygonArray = NpArrayN2f64
+AnglesVector = NpVectorNf64
 
 # Trajectories.
 XYPath = NpArrayN2f64
+XYThetaPath = NpArrayN3f64

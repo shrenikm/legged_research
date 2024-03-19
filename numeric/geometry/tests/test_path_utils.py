@@ -3,7 +3,12 @@ import pytest
 
 from common.custom_types import XYPath
 from common.testing_utils import execute_pytest_file
-from numeric.geometry.path_utils import segment_path_index, segment_path_indices
+from numeric.geometry.path_utils import (
+    compute_oriented_xy_path,
+    normalize_angles,
+    segment_path_index,
+    segment_path_indices,
+)
 
 
 @pytest.fixture(scope="module")
@@ -14,6 +19,65 @@ def xy_path() -> XYPath:
     xy_path[:, 0] = x_coords
 
     return xy_path
+
+
+def test_normalize_angle() -> None:
+
+    # Angles that require no remap.
+    np.testing.assert_equal(
+        normalize_angles(0.0),
+        0.0,
+    )
+    np.testing.assert_equal(
+        normalize_angles(1.0),
+        1.0,
+    )
+    np.testing.assert_equal(
+        normalize_angles(-1.0),
+        -1.0,
+    )
+    np.testing.assert_equal(
+        normalize_angles(2.0),
+        2.0,
+    )
+    np.testing.assert_equal(
+        normalize_angles(-2.0),
+        -2.0,
+    )
+
+    # Angles required to be remapped.
+    np.testing.assert_equal(
+        normalize_angles(4.0),
+        -(2 * np.pi - 4.0),
+    )
+    np.testing.assert_equal(
+        normalize_angles(-4.5),
+        (2 * np.pi - 4.5),
+    )
+
+    # Full wrapped.
+    np.testing.assert_equal(
+        normalize_angles(-2 * np.pi + 1.0),
+        1.0,
+    )
+    np.testing.assert_equal(
+        normalize_angles(2 * np.pi - 1.0),
+        -1.0,
+    )
+    np.testing.assert_equal(
+        normalize_angles(6 * np.pi + 4.5),
+        -(2 * np.pi - 4.5),
+    )
+    np.testing.assert_equal(
+        normalize_angles(-6 * np.pi - 4.0),
+        (2 * np.pi - 4.0),
+    )
+    np.testing.assert_array_equal(
+        normalize_angles(
+            angles=np.array([np.pi / 2.0, 5 * np.pi / 4.0, -5.0 * np.pi / 4.0])
+        ),
+        np.array([np.pi / 2.0, -3 * np.pi / 4.0, 3.0 * np.pi / 4.0]),
+    )
 
 
 def test_segment_path_index(xy_path: XYPath) -> None:
@@ -165,6 +229,41 @@ def test_segment_path_indices(xy_path: XYPath) -> None:
             start_index=9,
         )
         == []
+    )
+
+
+def test_compute_oriented_xy_path() -> None:
+
+    xy_path = np.array(
+        [
+            [0.0, 0.0],
+            [0.0, 0.0],
+            [1.0, 1.0],
+            [2.0, 1.0],
+            [2.0, 2.0],
+            [1.0, 3.0],
+            [0.0, 3.0],
+            [0.0, 2.0],
+        ]
+    )
+    oriented_xy_path = compute_oriented_xy_path(
+        xy_path=xy_path,
+    )
+    expected_oriented_xy_path = np.array(
+        [
+            [0.0, 0.0, 0.0],
+            [0.0, 0.0, np.pi / 4.0],
+            [1.0, 1.0, 0.0],
+            [2.0, 1.0, np.pi / 2.0],
+            [2.0, 2.0, 3 * np.pi / 4.0],
+            [1.0, 3.0, np.pi],
+            [0.0, 3.0, -np.pi / 2.0],
+            [0.0, 2.0, -np.pi / 2.0],
+        ]
+    )
+    np.testing.assert_array_equal(
+        oriented_xy_path,
+        expected_oriented_xy_path,
     )
 
 

@@ -1,8 +1,15 @@
-from typing import List
+from typing import List, Union
 
 import numpy as np
 
-from common.custom_types import XYPath
+from common.custom_types import AnglesVector, XYPath, XYThetaPath
+
+
+def normalize_angles(angles: Union[float, AnglesVector]) -> Union[float, AnglesVector]:
+    """
+    Mapping the angle/angles to be between -2pi and 2pi
+    """
+    return (angles + np.pi) % (2 * np.pi) - np.pi
 
 
 def segment_path_index(
@@ -54,3 +61,26 @@ def segment_path_indices(
         segment_indices.append(segment_index)
 
     return segment_indices
+
+
+def compute_oriented_xy_path(
+    xy_path: XYPath,
+) -> XYThetaPath:
+
+    assert xy_path.shape[0] > 1
+    assert xy_path.shape[1] == 2
+
+    n = xy_path.shape[0]
+    xytheta_path = np.zeros((n, 3), dtype=np.float64)
+    xytheta_path[:, :2] = xy_path
+
+    for i in range(n - 1):
+        # Note that this angle is already normalized as the domain of atan2
+        # lies in [-pi, pi]
+        xytheta_path[i, 2] = np.arctan2(
+            xy_path[i + 1, 1] - xy_path[i, 1],
+            xy_path[i + 1, 0] - xy_path[i, 0],
+        )
+    xytheta_path[n - 1, 2] = xytheta_path[n - 2, 2]
+
+    return xytheta_path
