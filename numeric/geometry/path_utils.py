@@ -1,8 +1,8 @@
-from typing import List, Union
+from typing import List, Tuple, Union
 
 import numpy as np
 
-from common.custom_types import AnglesVector, XYPath, XYThetaPath
+from common.custom_types import AnglesVector, XYPath, XYThetaPath, XYThetaPose
 
 
 def normalize_angles(angles: Union[float, AnglesVector]) -> Union[float, AnglesVector]:
@@ -84,3 +84,38 @@ def compute_oriented_xy_path(
     xytheta_path[n - 1, 2] = xytheta_path[n - 2, 2]
 
     return xytheta_path
+
+
+def compute_xytheta_side_poses(
+    xytheta_pose: XYThetaPose,
+    half_distance_m: float,
+) -> Tuple[XYThetaPose, XYThetaPose]:
+    """
+    For a given (x, y, theta) pose, computes and returns a tuple of two poses
+    that will lie on either side of the line at (x, y) oriented by theta.
+    The line joining the xy coordinates of the left and right poses will be
+    normal to theta.
+    """
+    assert xytheta_pose.ndim == 1
+    assert xytheta_pose.size == 3
+    assert half_distance_m >= 0.
+
+    x, y, theta = xytheta_pose
+    left_pose = np.array(
+        [
+            x - half_distance_m * np.sin(theta),
+            y + half_distance_m * np.cos(theta),
+            theta,
+        ],
+        dtype=np.float64,
+    )
+    right_pose = np.array(
+        [
+            x + half_distance_m * np.sin(theta),
+            y - half_distance_m * np.cos(theta),
+            theta,
+        ],
+        dtype=np.float64,
+    )
+
+    return left_pose, right_pose

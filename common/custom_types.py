@@ -40,5 +40,6 @@ PolygonArray = NpArrayN2f64
 AnglesVector = NpVectorNf64
 
 # Trajectories.
+XYThetaPose = NpVector3f64
 XYPath = NpArrayN2f64
 XYThetaPath = NpArrayN3f64

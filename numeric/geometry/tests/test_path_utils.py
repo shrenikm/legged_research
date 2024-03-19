@@ -5,6 +5,7 @@ from common.custom_types import XYPath
 from common.testing_utils import execute_pytest_file
 from numeric.geometry.path_utils import (
     compute_oriented_xy_path,
+    compute_xytheta_side_poses,
     normalize_angles,
     segment_path_index,
     segment_path_indices,
@@ -234,6 +235,16 @@ def test_segment_path_indices(xy_path: XYPath) -> None:
 
 def test_compute_oriented_xy_path() -> None:
 
+    # Invalid inputs.
+    with pytest.raises(AssertionError):
+        compute_oriented_xy_path(
+            xy_path=np.zeros((10, 3)),
+        )
+    with pytest.raises(AssertionError):
+        compute_oriented_xy_path(
+            xy_path=np.zeros((1, 2)),
+        )
+
     xy_path = np.array(
         [
             [0.0, 0.0],
@@ -264,6 +275,101 @@ def test_compute_oriented_xy_path() -> None:
     np.testing.assert_array_equal(
         oriented_xy_path,
         expected_oriented_xy_path,
+    )
+
+
+def test_compute_xytheta_side_poses() -> None:
+
+    # Invalid inputs.
+    with pytest.raises(AssertionError):
+        compute_xytheta_side_poses(
+            xytheta_pose=np.zeros(2),
+            half_distance_m=1.0,
+        )
+    with pytest.raises(AssertionError):
+        compute_xytheta_side_poses(
+            xytheta_pose=np.zeros((1, 3)),
+            half_distance_m=1.0,
+        )
+    with pytest.raises(AssertionError):
+        compute_xytheta_side_poses(
+            xytheta_pose=np.zeros(3),
+            half_distance_m=-1.0,
+        )
+
+    l, r = compute_xytheta_side_poses(
+        xytheta_pose=np.array([0.0, 0.0, 0.0]),
+        half_distance_m=0.0,
+    )
+    np.testing.assert_array_almost_equal(
+        l,
+        np.array([0.0, 0.0, 0.0]),
+        decimal=6,
+    )
+    np.testing.assert_array_almost_equal(
+        r,
+        np.array([0.0, 0.0, 0.0]),
+        decimal=6,
+    )
+
+    l, r = compute_xytheta_side_poses(
+        xytheta_pose=np.array([0.0, 0.0, 0.0]),
+        half_distance_m=0.5,
+    )
+    np.testing.assert_array_almost_equal(
+        l,
+        np.array([0.0, 0.5, 0.0]),
+        decimal=6,
+    )
+    np.testing.assert_array_almost_equal(
+        r,
+        np.array([0.0, -0.5, 0.0]),
+        decimal=6,
+    )
+
+    l, r = compute_xytheta_side_poses(
+        xytheta_pose=np.array([0.0, 0.0, np.pi / 2.0]),
+        half_distance_m=1.0,
+    )
+    np.testing.assert_array_almost_equal(
+        l,
+        np.array([-1.0, 0.0, np.pi / 2.0]),
+        decimal=6,
+    )
+    np.testing.assert_array_almost_equal(
+        r,
+        np.array([1.0, 0.0, np.pi / 2.0]),
+        decimal=6,
+    )
+
+    l, r = compute_xytheta_side_poses(
+        xytheta_pose=np.array([0.0, 0.0, -np.pi / 2.0]),
+        half_distance_m=1.0,
+    )
+    np.testing.assert_array_almost_equal(
+        l,
+        np.array([1.0, 0.0, -np.pi / 2.0]),
+        decimal=6,
+    )
+    np.testing.assert_array_almost_equal(
+        r,
+        np.array([-1.0, 0.0, -np.pi / 2.0]),
+        decimal=6,
+    )
+
+    l, r = compute_xytheta_side_poses(
+        xytheta_pose=np.array([-2.0, 3.0, 3. * np.pi / 4.0]),
+        half_distance_m=1.0,
+    )
+    np.testing.assert_array_almost_equal(
+        l,
+        np.array([-2.707107, 2.292893, 3. * np.pi / 4.0]),
+        decimal=6,
+    )
+    np.testing.assert_array_almost_equal(
+        r,
+        np.array([-1.292893, 3.707107, 3. * np.pi / 4.0]),
+        decimal=6,
     )
 
 
