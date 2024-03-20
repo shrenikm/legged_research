@@ -33,33 +33,35 @@ class FootstepType(Enum):
             raise NotImplementedError
 
 
-def _plot_cop_trajectory_on_ax(
+def _plot_zmp_trajectory_on_ax(
     ax: Axes,
-    cop_trajectory: PiecewisePolynomial,
+    zmp_trajectory: PiecewisePolynomial,
     xy_path: XYPath,
     left_foot_polygon: PolygonArray,
     right_foot_polygon: PolygonArray,
+    initialize_axes: bool = True,
 ) -> None:
-    ax.set_xlabel("x (m)")
-    ax.set_xlabel("y (m)")
-    ax.set_xlim(
-        np.min(xy_path[:, 0]).item() - 0.5,
-        np.max(xy_path[:, 0]).item() + 0.5,
-    )
-    ax.set_ylim(
-        np.min(xy_path[:, 1]).item() - 0.5,
-        np.max(xy_path[:, 1]).item() + 0.5,
-    )
-    ax.set_aspect(1.0)
+    if initialize_axes:
+        ax.set_xlabel("x (m)")
+        ax.set_xlabel("y (m)")
+        ax.set_xlim(
+            np.min(xy_path[:, 0]).item() - 0.5,
+            np.max(xy_path[:, 0]).item() + 0.5,
+        )
+        ax.set_ylim(
+            np.min(xy_path[:, 1]).item() - 0.5,
+            np.max(xy_path[:, 1]).item() + 0.5,
+        )
+        ax.set_aspect(1.0)
 
     # Plot xy_path
     ax.plot(xy_path[:, 0], xy_path[:, 1], linestyle="--", color="green")
 
-    cop_poses = np.empty((0, 3), dtype=np.float64)
+    zmp_poses = np.empty((0, 3), dtype=np.float64)
 
-    for t in cop_trajectory.get_segment_times():
-        cop_poses = np.vstack((cop_poses, cop_trajectory.value(t).reshape(3)))
-        footstep_pose = cop_trajectory.value(t)
+    for t in zmp_trajectory.get_segment_times():
+        zmp_poses = np.vstack((zmp_poses, zmp_trajectory.value(t).reshape(3)))
+        footstep_pose = zmp_trajectory.value(t)
         rot_mat = RotationMatrix.MakeXRotation(
             theta=footstep_pose[2].item(),
         ).matrix()[1:, 1:]
@@ -76,26 +78,26 @@ def _plot_cop_trajectory_on_ax(
             patches.Polygon(xy=lf.T, fill=False, color="brown"),
         )
 
-    # Plot COP poses.
-    ax.plot(cop_poses[:, 0], cop_poses[:, 1], color="cornflowerblue")
+    # Plot ZMP/COP poses.
+    ax.plot(zmp_poses[:, 0], zmp_poses[:, 1], color="cornflowerblue")
 
 
 @attr.frozen
-class NaiveFootstepPlanner:
+class NaiveZMPPlanner:
     """
-    Naive footstep planner that tries to track the given XY trajectory with
+    Naive ZMP planner that tries to track the given XY trajectory with
     footsteps on either side of the trajectory.
     As the name suggests, it utilizes a naive heuristic way of determining
     the footsteps without taking into account the robot kinematics or dynamics.
+    It then computes a COP/ZMP trajectory from the footstep poses.
     """
 
-    com_height_m: float
     distance_between_feet: float
     max_orientation_delta: float
     left_foot_polygon: PolygonArray
     right_foot_polygon: PolygonArray
 
-    def plan_cop_trajectory(
+    def plan_zmp_trajectory(
         self,
         xy_path: XYPath,
         stride_length_m: float,
@@ -191,7 +193,7 @@ class NaiveFootstepPlanner:
 
             next_footstep = next_footstep.invert()
 
-        cop_trajectory = PiecewisePolynomial.FirstOrderHold(
+        zmp_trajectory = PiecewisePolynomial.FirstOrderHold(
             breaks=breaks,
             samples=samples,
         )
@@ -199,13 +201,14 @@ class NaiveFootstepPlanner:
         if debug:
             fig = plt.figure("Naive Footstep Trajectory")
             ax = fig.gca()
-            _plot_cop_trajectory_on_ax(
+            _plot_zmp_trajectory_on_ax(
                 ax=ax,
-                cop_trajectory=cop_trajectory,
+                zmp_trajectory=zmp_trajectory,
                 xy_path=xy_path,
                 left_foot_polygon=self.left_foot_polygon,
                 right_foot_polygon=self.right_foot_polygon,
+                initialize_axes=True,
             )
             plt.show()
 
-        return cop_trajectory
+        return zmp_trajectory

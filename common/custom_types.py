@@ -36,6 +36,8 @@ StateVector = NpVectorNf64
 GainsVector = NpVectorNf64
 
 # Geometry
+XYPoint = NpArrayN2f64
+XYZPoint = NpArrayN3f64
 PolygonArray = NpArrayN2f64
 AnglesVector = NpVectorNf64
 
