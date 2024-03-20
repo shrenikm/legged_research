@@ -38,13 +38,54 @@ def test_footstep_type() -> None:
     assert FootstepType.RIGHT.invert() == FootstepType.LEFT
 
 
-def test_naive_footstep_planner(
+def test_invalid_zmp_planner_construction(
+    left_foot_polygon: PolygonArray,
+    right_foot_polygon: PolygonArray,
+) -> None:
+
+    with pytest.raises(AssertionError):
+        NaiveZMPPlanner(
+            com_z_m=-1.0,
+            distance_between_feet=0.5,
+            max_orientation_delta=np.deg2rad(30.0),
+            left_foot_polygon=left_foot_polygon,
+            right_foot_polygon=right_foot_polygon,
+        )
+    with pytest.raises(AssertionError):
+        NaiveZMPPlanner(
+            com_z_m=1.0,
+            distance_between_feet=-0.5,
+            max_orientation_delta=np.deg2rad(30.0),
+            left_foot_polygon=left_foot_polygon,
+            right_foot_polygon=right_foot_polygon,
+        )
+    with pytest.raises(AssertionError):
+        NaiveZMPPlanner(
+            com_z_m=1.0,
+            distance_between_feet=0.5,
+            max_orientation_delta=-np.deg2rad(30.0),
+            left_foot_polygon=left_foot_polygon,
+            right_foot_polygon=right_foot_polygon,
+        )
+    with pytest.raises(AssertionError):
+        NaiveZMPPlanner(
+            com_z_m=1.0,
+            distance_between_feet=0.5,
+            max_orientation_delta=np.deg2rad(30.0),
+            left_foot_polygon=left_foot_polygon,
+            right_foot_polygon=right_foot_polygon,
+            dt=-0.001,
+        )
+
+
+def test_naive_zmp_trajectory(
     left_foot_polygon: PolygonArray,
     right_foot_polygon: PolygonArray,
     debug: bool = True,
 ) -> None:
 
     nfp = NaiveZMPPlanner(
+        com_z_m=1.0,
         distance_between_feet=0.5,
         max_orientation_delta=np.deg2rad(30.0),
         left_foot_polygon=left_foot_polygon,

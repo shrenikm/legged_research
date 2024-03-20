@@ -1,4 +1,4 @@
-from typing import Annotated, Literal
+from typing import Annotated, Any, Callable, Literal
 
 import numpy as np
 import numpy.typing as npt
@@ -8,6 +8,10 @@ FileName = str
 FilePath = str
 DirName = str
 DirPath = str
+
+# Attrs stuff
+AttrsConverterFunc = Callable[[Any], Any]
+AttrsValidatorFunc = Callable
 
 # Numpy types
 f64 = np.float64

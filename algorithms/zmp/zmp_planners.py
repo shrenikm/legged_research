@@ -8,9 +8,11 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.axes import Axes
 from pydrake.math import RotationMatrix
-from pydrake.trajectories import PiecewisePolynomial
+from pydrake.trajectories import PiecewisePolynomial, Trajectory
 
-from common.custom_types import PolygonArray, XYPath
+from common.attr_utils import AttrsValidators
+from common.constants import ACC_DUE_TO_GRAVITY
+from common.custom_types import PolygonArray, XYPath, XYPoint
 from numeric.geometry.path_utils import (
     compute_oriented_xy_path,
     compute_xytheta_side_poses,
@@ -83,6 +85,13 @@ def _plot_zmp_trajectory_on_ax(
 
 
 @attr.frozen
+class ZMPPlannerResults:
+    zmp_trajectory: PiecewisePolynomial
+    # TODO: Can do better than piecewise here.
+    com_trajectory: PiecewisePolynomial
+
+
+@attr.frozen
 class NaiveZMPPlanner:
     """
     Naive ZMP planner that tries to track the given XY trajectory with
@@ -92,10 +101,18 @@ class NaiveZMPPlanner:
     It then computes a COP/ZMP trajectory from the footstep poses.
     """
 
-    distance_between_feet: float
-    max_orientation_delta: float
+    com_z_m: float = attr.ib(validator=AttrsValidators.positive_validator())
+    distance_between_feet: float = attr.ib(
+        validator=AttrsValidators.positive_validator()
+    )
+    max_orientation_delta: float = attr.ib(
+        validator=AttrsValidators.positive_validator()
+    )
     left_foot_polygon: PolygonArray
     right_foot_polygon: PolygonArray
+
+    dt: float = attr.ib(default=0.01, validator=AttrsValidators.positive_validator())
+    g: float = attr.ib(init=False, default=ACC_DUE_TO_GRAVITY)
 
     def plan_zmp_trajectory(
         self,
@@ -212,3 +229,46 @@ class NaiveZMPPlanner:
             plt.show()
 
         return zmp_trajectory
+
+    def plan_com_trajectory(
+        self,
+        initial_com_xy: XYPoint,
+    ) -> PiecewisePolynomial:
+        """
+        Integrates the following equations to compute the trajectory (t, x_com, y_com) from (t, x_zmp, y_zmp)
+
+        x_com_ddot = (g / h) * (x_com - x_zmp)
+        y_com_ddot = (g / h) * (y_com - y_zmp)
+
+        Where h = z_com - z_zmp = z_com (as z_zmp = 0) = height of COM
+
+        We can use the same integration scheme for both x and y as only the
+        com coordinates are different between them.
+        We can denote the equations in general as:
+
+        u'' = au - b
+        Where a = (g / h), b = (g / h) * x_zmp
+
+        u'' = au - b
+        u' = v
+        v' = au - b
+
+        We assume u(0) (x and y) = given and v(0) = u'(0) = 0 (zero velocities
+        for both x and y)
+
+        v'_(k) = a_k * u_k - b_k
+        u'_(k) = v_k
+        v_(k+1) = v_k + dt * v'_k
+        u_(k+1) = u_k + dt * u'_k
+
+        We can vectorize and solve for both x and y simulatenously as they are
+        decoupled.
+
+        """
+
+        def _integrate_com(
+            initial_com_xy: XYPoint,
+        ) -> None:
+            u_current = np.copy(initial_com_xy)
+            v_current = np.zeros(2, dtype=np.float64)
+            a_current = self.g / self.com_z_m
