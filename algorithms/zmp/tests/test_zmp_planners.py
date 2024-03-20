@@ -45,15 +45,6 @@ def test_invalid_zmp_planner_construction(
 
     with pytest.raises(AssertionError):
         NaiveZMPPlanner(
-            com_z_m=-1.0,
-            distance_between_feet=0.5,
-            max_orientation_delta=np.deg2rad(30.0),
-            left_foot_polygon=left_foot_polygon,
-            right_foot_polygon=right_foot_polygon,
-        )
-    with pytest.raises(AssertionError):
-        NaiveZMPPlanner(
-            com_z_m=1.0,
             distance_between_feet=-0.5,
             max_orientation_delta=np.deg2rad(30.0),
             left_foot_polygon=left_foot_polygon,
@@ -61,7 +52,6 @@ def test_invalid_zmp_planner_construction(
         )
     with pytest.raises(AssertionError):
         NaiveZMPPlanner(
-            com_z_m=1.0,
             distance_between_feet=0.5,
             max_orientation_delta=-np.deg2rad(30.0),
             left_foot_polygon=left_foot_polygon,
@@ -69,7 +59,6 @@ def test_invalid_zmp_planner_construction(
         )
     with pytest.raises(AssertionError):
         NaiveZMPPlanner(
-            com_z_m=1.0,
             distance_between_feet=0.5,
             max_orientation_delta=np.deg2rad(30.0),
             left_foot_polygon=left_foot_polygon,
@@ -85,17 +74,17 @@ def test_naive_zmp_trajectory(
 ) -> None:
 
     nfp = NaiveZMPPlanner(
-        com_z_m=1.0,
         distance_between_feet=0.5,
         max_orientation_delta=np.deg2rad(30.0),
         left_foot_polygon=left_foot_polygon,
         right_foot_polygon=right_foot_polygon,
+        dt=1e-3,
     )
 
     # Testing ZMP/COP trajectory generation for different kinds of paths.
 
     # Straight path in positive x.
-    straight_x_path = np.arange(0.0, 10.0, 0.05)
+    straight_x_path = np.arange(0.0, 1.0, 0.05)
     straight_y_path = np.zeros(straight_x_path.size, dtype=np.float64)
     straight_xy_path = np.vstack((straight_x_path, straight_y_path)).T
     zmp_trajectory = nfp.plan_zmp_trajectory(
@@ -106,6 +95,12 @@ def test_naive_zmp_trajectory(
         first_footstep=FootstepType.RIGHT,
         debug=debug,
     )
+    com_trajectory = nfp.plan_com_trajectory(
+        initial_com=np.hstack((straight_xy_path[0], 1.0)),
+        zmp_trajectory=zmp_trajectory,
+        debug=True,
+    )
+
     np.testing.assert_array_almost_equal(
         zmp_trajectory.value(zmp_trajectory.end_time()).reshape(3),
         np.array([9.95, -0.25, 0.0]),

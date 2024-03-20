@@ -12,7 +12,7 @@ from pydrake.trajectories import PiecewisePolynomial, Trajectory
 
 from common.attr_utils import AttrsValidators
 from common.constants import ACC_DUE_TO_GRAVITY
-from common.custom_types import PolygonArray, XYPath, XYPoint
+from common.custom_types import PolygonArray, XYPath, XYPoint, XYZPoint
 from numeric.geometry.path_utils import (
     compute_oriented_xy_path,
     compute_xytheta_side_poses,
@@ -45,7 +45,7 @@ def _plot_zmp_trajectory_on_ax(
 ) -> None:
     if initialize_axes:
         ax.set_xlabel("x (m)")
-        ax.set_xlabel("y (m)")
+        ax.set_ylabel("y (m)")
         ax.set_xlim(
             np.min(xy_path[:, 0]).item() - 0.5,
             np.max(xy_path[:, 0]).item() + 0.5,
@@ -84,6 +84,28 @@ def _plot_zmp_trajectory_on_ax(
     ax.plot(zmp_poses[:, 0], zmp_poses[:, 1], color="cornflowerblue")
 
 
+def _plot_com_trajectory_on_ax(
+    ax: Axes,
+    com_trajectory: PiecewisePolynomial,
+    initialize_axes: bool = True,
+) -> None:
+    if initialize_axes:
+        ax.set_xlabel("x (m)")
+        ax.set_ylabel("y (m)")
+        ax.set_aspect(1.0)
+
+    com_poses = np.empty((0, 3), dtype=np.float64)
+
+    t = 0.0
+    sample_time = 0.1
+    while t <= com_trajectory.end_time():
+        com_poses = np.vstack((com_poses, com_trajectory.value(t).reshape(3)))
+        t += sample_time
+
+    # Plot COM poses (Just x and y).
+    ax.plot(com_poses[:, 0], com_poses[:, 1], color="salmon")
+
+
 @attr.frozen
 class ZMPPlannerResults:
     zmp_trajectory: PiecewisePolynomial
@@ -101,7 +123,6 @@ class NaiveZMPPlanner:
     It then computes a COP/ZMP trajectory from the footstep poses.
     """
 
-    com_z_m: float = attr.ib(validator=AttrsValidators.positive_validator())
     distance_between_feet: float = attr.ib(
         validator=AttrsValidators.positive_validator()
     )
@@ -111,7 +132,7 @@ class NaiveZMPPlanner:
     left_foot_polygon: PolygonArray
     right_foot_polygon: PolygonArray
 
-    dt: float = attr.ib(default=0.01, validator=AttrsValidators.positive_validator())
+    dt: float = attr.ib(default=0.001, validator=AttrsValidators.positive_validator())
     g: float = attr.ib(init=False, default=ACC_DUE_TO_GRAVITY)
 
     def plan_zmp_trajectory(
@@ -232,7 +253,9 @@ class NaiveZMPPlanner:
 
     def plan_com_trajectory(
         self,
-        initial_com_xy: XYPoint,
+        initial_com: XYZPoint,
+        zmp_trajectory: PiecewisePolynomial,
+        debug: bool = False,
     ) -> PiecewisePolynomial:
         """
         Integrates the following equations to compute the trajectory (t, x_com, y_com) from (t, x_zmp, y_zmp)
@@ -265,10 +288,63 @@ class NaiveZMPPlanner:
         decoupled.
 
         """
+        assert initial_com.size == 3
+        assert zmp_trajectory.start_time() == 0.
 
-        def _integrate_com(
-            initial_com_xy: XYPoint,
-        ) -> None:
-            u_current = np.copy(initial_com_xy)
-            v_current = np.zeros(2, dtype=np.float64)
-            a_current = self.g / self.com_z_m
+        com_z_m = initial_com[2]
+        u_current = np.copy(initial_com[:2])
+        v_current = np.zeros(2, dtype=np.float64)
+        a_current = self.g / com_z_m
+
+        breaks = [0.0]
+        samples = np.array([initial_com[0], initial_com[1], com_z_m]).reshape(3, 1)
+
+        t = 0.0
+        while t <= zmp_trajectory.end_time():
+            b_current = a_current * zmp_trajectory.value(t=t)[:2].reshape(2)
+
+            # vp = v_prime = v'
+            up_current = v_current
+            vp_current = a_current * u_current - b_current
+            # Integrate.
+            u_current = u_current + self.dt * up_current
+            v_current = v_current + self.dt * vp_current
+
+            t += self.dt
+
+            print(t)
+            print(a_current, b_current)
+            print(up_current, vp_current)
+            print(u_current, v_current)
+            print("===")
+            #input()
+
+
+
+            # Add to the trajectory.
+            breaks.append(t)
+            samples = np.hstack(
+                (
+                    samples,
+                    np.array([u_current[0], u_current[1], com_z_m]).reshape(3, 1),
+                )
+            )
+        com_trajectory = PiecewisePolynomial.FirstOrderHold(
+            breaks=breaks,
+            samples=samples,
+        )
+        print(com_trajectory.start_time(), com_trajectory.end_time())
+        print(com_trajectory.value(com_trajectory.start_time()))
+        print(com_trajectory.value(com_trajectory.end_time()))
+        input()
+
+        if debug:
+            fig = plt.figure("Naive Footstep Trajectory")
+            ax = fig.gca()
+            _plot_com_trajectory_on_ax(
+                ax=ax,
+                com_trajectory=com_trajectory,
+            )
+            plt.show()
+
+        return com_trajectory
