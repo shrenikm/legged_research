@@ -9,6 +9,7 @@ import numpy as np
 from matplotlib.axes import Axes
 from pydrake.math import RotationMatrix
 from pydrake.trajectories import PiecewisePolynomial, Trajectory
+from scipy.linalg import solve_discrete_are
 
 from common.attr_utils import AttrsValidators
 from common.constants import ACC_DUE_TO_GRAVITY
@@ -257,6 +258,58 @@ class NaiveZMPPlanner:
         zmp_trajectory: PiecewisePolynomial,
         debug: bool = False,
     ) -> PiecewisePolynomial:
+
+        assert initial_com.size == 3
+        assert zmp_trajectory.start_time() == 0.0
+
+        com_z_m = initial_com[2]
+        preview_time_s = 1.0
+        # num_preview_points = int(zmp_trajectory.end_time() / self.dt)
+        num_preview_points = int(preview_time_s / self.dt)
+
+        A = np.array(
+            [
+                [1.0, self.dt, self.dt**2 / 2.0],
+                [0.0, 1.0, self.dt],
+                [0.0, 0.0, 1.0],
+            ],
+            dtype=np.float64,
+        )
+        B = np.array(
+            [self.dt**3 / 6.0, self.dt**2 / 2.0, self.dt], dtype=np.float64
+        ).reshape(3, 1)
+        C = np.array([1.0, 0.0, -com_z_m / self.g], dtype=np.float64).reshape(1, 3)
+        Qe = 1e-3
+        qx = 1e-3
+        Qx = qx * np.eye(3, dtype=np.float64)
+        R = 1e-3
+
+        F_bar = np.vstack((C @ A, A))
+        I_bar = np.array([1.0, 0.0, 0.0, 0.0], dtype=np.float64).reshape(4, 1)
+        A_bar = np.hstack((I_bar, F_bar))
+        B_bar = np.vstack((C @ B, B))
+        Q_bar = np.block([[Qe, np.zeros((1, 3))], [np.zeros((3, 1)), Qx]])
+
+        P_bar = solve_discrete_are(a=A_bar, b=B_bar, q=Q_bar, r=R)
+        K_bar = np.linalg.inv(R + B_bar.T @ P_bar @ B_bar) @ (B_bar.T @ P_bar @ A_bar)
+        Gi = K_bar[0, 0]
+        Gx = K_bar[0, 1:]
+
+        Ac_bar = A_bar - B_bar @ K_bar
+        X_bar = -Ac_bar.T @ P_bar @ I_bar
+        Gd = np.zeros(num_preview_points, dtype=np.float64)
+        Gd[0] = -Gi
+        for i in range(1, num_preview_points):
+            Gd[i] = np.linalg.inv(R + B_bar.T @ P_bar @ B_bar) @ B_bar.T @ X_bar
+            X_bar = Ac_bar.T @ X_bar
+
+
+    def plan_com_trajectory2(
+        self,
+        initial_com: XYZPoint,
+        zmp_trajectory: PiecewisePolynomial,
+        debug: bool = False,
+    ) -> PiecewisePolynomial:
         """
         Integrates the following equations to compute the trajectory (t, x_com, y_com) from (t, x_zmp, y_zmp)
 
@@ -289,7 +342,7 @@ class NaiveZMPPlanner:
 
         """
         assert initial_com.size == 3
-        assert zmp_trajectory.start_time() == 0.
+        assert zmp_trajectory.start_time() == 0.0
 
         com_z_m = initial_com[2]
         u_current = np.copy(initial_com[:2])
@@ -317,9 +370,7 @@ class NaiveZMPPlanner:
             print(up_current, vp_current)
             print(u_current, v_current)
             print("===")
-            #input()
-
-
+            # input()
 
             # Add to the trajectory.
             breaks.append(t)
