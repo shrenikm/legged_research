@@ -67,7 +67,7 @@ def test_invalid_zmp_planner_construction(
         )
 
 
-def test_naive_zmp_trajectory(
+def test_naive_zmp_planner(
     left_foot_polygon: PolygonArray,
     right_foot_polygon: PolygonArray,
     debug: bool = True,
@@ -84,25 +84,21 @@ def test_naive_zmp_trajectory(
     # Testing ZMP/COP trajectory generation for different kinds of paths.
 
     # Straight path in positive x.
-    straight_x_path = np.arange(0.0, 1.0, 0.05)
+    straight_x_path = np.arange(0.0, 10.0, 0.05)
     straight_y_path = np.zeros(straight_x_path.size, dtype=np.float64)
     straight_xy_path = np.vstack((straight_x_path, straight_y_path)).T
-    zmp_trajectory = nfp.plan_zmp_trajectory(
+    zmp_result = nfp.compute_full_zmp_result(
         xy_path=straight_xy_path,
         stride_length_m=0.5,
         swing_phase_time_s=1.0,
         stance_phase_time_s=1.0,
+        initial_com=np.hstack((straight_xy_path[0], 1.0)),
         first_footstep=FootstepType.RIGHT,
         debug=debug,
     )
-    com_trajectory = nfp.plan_com_trajectory(
-        initial_com=np.hstack((straight_xy_path[0], 1.0)),
-        zmp_trajectory=zmp_trajectory,
-        debug=True,
-    )
-
+    ozt = zmp_result.oriented_zmp_trajectory
     np.testing.assert_array_almost_equal(
-        zmp_trajectory.value(zmp_trajectory.end_time()).reshape(3),
+        ozt.value(ozt.end_time()).reshape(3),
         np.array([9.95, -0.25, 0.0]),
         decimal=6,
     )
@@ -111,16 +107,18 @@ def test_naive_zmp_trajectory(
     diagonal_x_path = np.arange(0.0, 10.0, 0.05)
     diagonal_y_path = np.arange(0.0, 10.0, 0.05)
     diagonal_xy_path = np.vstack((diagonal_x_path, diagonal_y_path)).T
-    zmp_trajectory = nfp.plan_zmp_trajectory(
+    zmp_result = nfp.compute_full_zmp_result(
         xy_path=diagonal_xy_path,
         stride_length_m=0.5,
         swing_phase_time_s=1.0,
         stance_phase_time_s=1.0,
+        initial_com=np.hstack((diagonal_xy_path[0], 1.0)),
         first_footstep=FootstepType.RIGHT,
         debug=debug,
     )
+    ozt = zmp_result.oriented_zmp_trajectory
     np.testing.assert_array_almost_equal(
-        zmp_trajectory.value(zmp_trajectory.end_time()).reshape(3),
+        ozt.value(ozt.end_time()).reshape(3),
         np.array([9.7732233, 10.1267767, 0.78539816]),
         decimal=6,
     )
@@ -133,16 +131,18 @@ def test_naive_zmp_trajectory(
     turn_y_path2 = np.arange(0.0, 10.0, 0.05)
     turn_y_path = np.hstack((turn_y_path1, turn_y_path2))
     turn_xy_path = np.vstack((turn_x_path, turn_y_path)).T
-    zmp_trajectory = nfp.plan_zmp_trajectory(
+    zmp_result = nfp.compute_full_zmp_result(
         xy_path=turn_xy_path,
         stride_length_m=0.5,
         swing_phase_time_s=1.0,
         stance_phase_time_s=1.0,
+        initial_com=np.hstack((turn_xy_path[0], 1.0)),
         first_footstep=FootstepType.RIGHT,
         debug=debug,
     )
+    ozt = zmp_result.oriented_zmp_trajectory
     np.testing.assert_array_almost_equal(
-        zmp_trajectory.value(zmp_trajectory.end_time()).reshape(3),
+        ozt.value(ozt.end_time()).reshape(3),
         np.array([10.25, 9.95, 1.570796]),
         decimal=6,
     )

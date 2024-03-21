@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from enum import Enum, auto
+from typing import Tuple
 
 import attr
 import matplotlib.patches as patches
@@ -13,7 +14,15 @@ from scipy.linalg import solve_discrete_are
 
 from common.attr_utils import AttrsValidators
 from common.constants import ACC_DUE_TO_GRAVITY
-from common.custom_types import PolygonArray, XYPath, XYPoint, XYZPoint
+from common.custom_types import (
+    GainsVector,
+    NpArrayNNf64,
+    NpVectorNf64,
+    PolygonArray,
+    XYPath,
+    XYPoint,
+    XYZPoint,
+)
 from numeric.geometry.path_utils import (
     compute_oriented_xy_path,
     compute_xytheta_side_poses,
@@ -38,7 +47,7 @@ class FootstepType(Enum):
 
 def _plot_zmp_trajectory_on_ax(
     ax: Axes,
-    zmp_trajectory: PiecewisePolynomial,
+    oriented_zmp_trajectory: PiecewisePolynomial,
     xy_path: XYPath,
     left_foot_polygon: PolygonArray,
     right_foot_polygon: PolygonArray,
@@ -62,9 +71,9 @@ def _plot_zmp_trajectory_on_ax(
 
     zmp_poses = np.empty((0, 3), dtype=np.float64)
 
-    for t in zmp_trajectory.get_segment_times():
-        zmp_poses = np.vstack((zmp_poses, zmp_trajectory.value(t).reshape(3)))
-        footstep_pose = zmp_trajectory.value(t)
+    for t in oriented_zmp_trajectory.get_segment_times():
+        zmp_poses = np.vstack((zmp_poses, oriented_zmp_trajectory.value(t).reshape(3)))
+        footstep_pose = oriented_zmp_trajectory.value(t)
         rot_mat = RotationMatrix.MakeXRotation(
             theta=footstep_pose[2].item(),
         ).matrix()[1:, 1:]
@@ -87,6 +96,7 @@ def _plot_zmp_trajectory_on_ax(
 
 def _plot_com_trajectory_on_ax(
     ax: Axes,
+    unoriented_zmp_output_trajectory: PiecewisePolynomial,
     com_trajectory: PiecewisePolynomial,
     initialize_axes: bool = True,
 ) -> None:
@@ -96,20 +106,36 @@ def _plot_com_trajectory_on_ax(
         ax.set_aspect(1.0)
 
     com_poses = np.empty((0, 3), dtype=np.float64)
+    unoriented_zmp_output_poses = np.empty((0, 2), dtype=np.float64)
 
     t = 0.0
     sample_time = 0.1
     while t <= com_trajectory.end_time():
+        unoriented_zmp_output_poses = np.vstack(
+            (
+                unoriented_zmp_output_poses,
+                unoriented_zmp_output_trajectory.value(t).reshape(2),
+            )
+        )
         com_poses = np.vstack((com_poses, com_trajectory.value(t).reshape(3)))
         t += sample_time
+
+    # Plot ZMP output poses
+    ax.plot(
+        unoriented_zmp_output_poses[:, 0],
+        unoriented_zmp_output_poses[:, 1],
+        color="olive",
+        linestyle="dotted",
+    )
 
     # Plot COM poses (Just x and y).
     ax.plot(com_poses[:, 0], com_poses[:, 1], color="salmon")
 
 
 @attr.frozen
-class ZMPPlannerResults:
-    zmp_trajectory: PiecewisePolynomial
+class ZMPPlannerResult:
+    oriented_zmp_trajectory: PiecewisePolynomial
+    unoriented_zmp_output_trajectory: PiecewisePolynomial
     # TODO: Can do better than piecewise here.
     com_trajectory: PiecewisePolynomial
 
@@ -232,7 +258,7 @@ class NaiveZMPPlanner:
 
             next_footstep = next_footstep.invert()
 
-        zmp_trajectory = PiecewisePolynomial.FirstOrderHold(
+        oriented_zmp_trajectory = PiecewisePolynomial.FirstOrderHold(
             breaks=breaks,
             samples=samples,
         )
@@ -242,7 +268,7 @@ class NaiveZMPPlanner:
             ax = fig.gca()
             _plot_zmp_trajectory_on_ax(
                 ax=ax,
-                zmp_trajectory=zmp_trajectory,
+                oriented_zmp_trajectory=oriented_zmp_trajectory,
                 xy_path=xy_path,
                 left_foot_polygon=self.left_foot_polygon,
                 right_foot_polygon=self.right_foot_polygon,
@@ -250,22 +276,58 @@ class NaiveZMPPlanner:
             )
             plt.show()
 
-        return zmp_trajectory
+        return oriented_zmp_trajectory
 
     def plan_com_trajectory(
         self,
         initial_com: XYZPoint,
-        zmp_trajectory: PiecewisePolynomial,
+        oriented_zmp_trajectory: PiecewisePolynomial,
         debug: bool = False,
-    ) -> PiecewisePolynomial:
+    ) -> Tuple[PiecewisePolynomial, PiecewisePolynomial]:
 
         assert initial_com.size == 3
-        assert zmp_trajectory.start_time() == 0.0
+        assert oriented_zmp_trajectory.start_time() == 0.0
+
+        def _compute_gains(
+            A: NpArrayNNf64,
+            B: NpVectorNf64,
+            C: NpVectorNf64,
+            Qe: float,
+            Qx: NpArrayNNf64,
+        ) -> Tuple[float, GainsVector, GainsVector]:
+
+            F_bar = np.vstack((C @ A, A))
+            I_bar = np.array([1.0, 0.0, 0.0, 0.0], dtype=np.float64).reshape(4, 1)
+            A_bar = np.hstack((I_bar, F_bar))
+            B_bar = np.vstack((C @ B, B))
+            Q_bar = np.block([[Qe, np.zeros((1, 3))], [np.zeros((3, 1)), Qx]])
+
+            P_bar = solve_discrete_are(a=A_bar, b=B_bar, q=Q_bar, r=R)
+            K_bar = np.linalg.inv(R + B_bar.T @ P_bar @ B_bar) @ (
+                B_bar.T @ P_bar @ A_bar
+            )
+            Gi = K_bar[0, 0]
+            Gx = K_bar[0, 1:]
+
+            Ac_bar = A_bar - B_bar @ K_bar
+            X_bar = -Ac_bar.T @ P_bar @ I_bar
+            Gd = np.zeros(num_preview_points, dtype=np.float64)
+            Gd[0] = -Gi
+            for i in range(1, num_preview_points):
+                Gd[i] = (
+                    np.linalg.inv(R + B_bar.T @ P_bar @ B_bar) @ B_bar.T @ X_bar
+                ).item()
+                X_bar = Ac_bar.T @ X_bar
+
+            return Gi, Gx, Gd
 
         com_z_m = initial_com[2]
         preview_time_s = 1.0
-        # num_preview_points = int(zmp_trajectory.end_time() / self.dt)
         num_preview_points = int(preview_time_s / self.dt)
+        num_zmp_trajectory_points = int(oriented_zmp_trajectory.end_time() / self.dt)
+        # For the COM trajectory, we need 'num_preview_points' in the future, so we can't
+        # compute it all the way to the end by this method.
+        num_com_trajectory_points = num_zmp_trajectory_points - num_preview_points
 
         A = np.array(
             [
@@ -279,123 +341,136 @@ class NaiveZMPPlanner:
             [self.dt**3 / 6.0, self.dt**2 / 2.0, self.dt], dtype=np.float64
         ).reshape(3, 1)
         C = np.array([1.0, 0.0, -com_z_m / self.g], dtype=np.float64).reshape(1, 3)
-        Qe = 1e-3
-        qx = 1e-3
+        Qe = 1.0
+        qx = 0.0
         Qx = qx * np.eye(3, dtype=np.float64)
         R = 1e-3
 
-        F_bar = np.vstack((C @ A, A))
-        I_bar = np.array([1.0, 0.0, 0.0, 0.0], dtype=np.float64).reshape(4, 1)
-        A_bar = np.hstack((I_bar, F_bar))
-        B_bar = np.vstack((C @ B, B))
-        Q_bar = np.block([[Qe, np.zeros((1, 3))], [np.zeros((3, 1)), Qx]])
+        Gi, Gx, Gd = _compute_gains(A=A, B=B, C=C, Qx=Qx, Qe=Qe)
 
-        P_bar = solve_discrete_are(a=A_bar, b=B_bar, q=Q_bar, r=R)
-        K_bar = np.linalg.inv(R + B_bar.T @ P_bar @ B_bar) @ (B_bar.T @ P_bar @ A_bar)
-        Gi = K_bar[0, 0]
-        Gx = K_bar[0, 1:]
+        # State is [x, xdot, xddot]/[y, ydot, yddot]
+        com_state_x = np.array([initial_com[0], 0.0, 0.0], dtype=np.float64)[:, None]
+        com_state_y = np.array([initial_com[1], 0.0, 0.0], dtype=np.float64)[:, None]
 
-        Ac_bar = A_bar - B_bar @ K_bar
-        X_bar = -Ac_bar.T @ P_bar @ I_bar
-        Gd = np.zeros(num_preview_points, dtype=np.float64)
-        Gd[0] = -Gi
-        for i in range(1, num_preview_points):
-            Gd[i] = np.linalg.inv(R + B_bar.T @ P_bar @ B_bar) @ B_bar.T @ X_bar
-            X_bar = Ac_bar.T @ X_bar
+        unoriented_zmp_output_breaks = []
+        unoriented_zmp_output_samples = np.empty((2, 0), dtype=np.float64)
+        com_breaks = []
+        com_samples = np.empty((3, 0), dtype=np.float64)
 
+        error_x, error_y, u_x, u_y = 0.0, 0.0, 0.0, 0.0
 
-    def plan_com_trajectory2(
-        self,
-        initial_com: XYZPoint,
-        zmp_trajectory: PiecewisePolynomial,
-        debug: bool = False,
-    ) -> PiecewisePolynomial:
-        """
-        Integrates the following equations to compute the trajectory (t, x_com, y_com) from (t, x_zmp, y_zmp)
+        for i in range(num_com_trajectory_points):
 
-        x_com_ddot = (g / h) * (x_com - x_zmp)
-        y_com_ddot = (g / h) * (y_com - y_zmp)
+            t = i * self.dt
+            zmp_x, zmp_y, _ = oriented_zmp_trajectory.value(t=t)
 
-        Where h = z_com - z_zmp = z_com (as z_zmp = 0) = height of COM
-
-        We can use the same integration scheme for both x and y as only the
-        com coordinates are different between them.
-        We can denote the equations in general as:
-
-        u'' = au - b
-        Where a = (g / h), b = (g / h) * x_zmp
-
-        u'' = au - b
-        u' = v
-        v' = au - b
-
-        We assume u(0) (x and y) = given and v(0) = u'(0) = 0 (zero velocities
-        for both x and y)
-
-        v'_(k) = a_k * u_k - b_k
-        u'_(k) = v_k
-        v_(k+1) = v_k + dt * v'_k
-        u_(k+1) = u_k + dt * u'_k
-
-        We can vectorize and solve for both x and y simulatenously as they are
-        decoupled.
-
-        """
-        assert initial_com.size == 3
-        assert zmp_trajectory.start_time() == 0.0
-
-        com_z_m = initial_com[2]
-        u_current = np.copy(initial_com[:2])
-        v_current = np.zeros(2, dtype=np.float64)
-        a_current = self.g / com_z_m
-
-        breaks = [0.0]
-        samples = np.array([initial_com[0], initial_com[1], com_z_m]).reshape(3, 1)
-
-        t = 0.0
-        while t <= zmp_trajectory.end_time():
-            b_current = a_current * zmp_trajectory.value(t=t)[:2].reshape(2)
-
-            # vp = v_prime = v'
-            up_current = v_current
-            vp_current = a_current * u_current - b_current
-            # Integrate.
-            u_current = u_current + self.dt * up_current
-            v_current = v_current + self.dt * vp_current
-
-            t += self.dt
-
-            print(t)
-            print(a_current, b_current)
-            print(up_current, vp_current)
-            print(u_current, v_current)
-            print("===")
-            # input()
-
-            # Add to the trajectory.
-            breaks.append(t)
-            samples = np.hstack(
-                (
-                    samples,
-                    np.array([u_current[0], u_current[1], com_z_m]).reshape(3, 1),
-                )
+            preview_times_list = [
+                _t * self.dt for _t in range(i + 1, i + 1 + num_preview_points)
+            ]
+            zmp_preview_poses = oriented_zmp_trajectory.vector_values(
+                preview_times_list
             )
-        com_trajectory = PiecewisePolynomial.FirstOrderHold(
-            breaks=breaks,
-            samples=samples,
+
+            unoriented_zmp_output_x = (C @ com_state_x).item()
+            unoriented_zmp_output_y = (C @ com_state_y).item()
+
+            unoriented_zmp_output_breaks.append(t)
+            unoriented_zmp_output_samples = np.hstack(
+                (
+                    unoriented_zmp_output_samples,
+                    np.array([unoriented_zmp_output_x, unoriented_zmp_output_y])[
+                        :, None
+                    ],
+                ),
+            )
+
+            # error_x = unoriented_zmp_output_x - zmp_x
+            # error_y = unoriented_zmp_output_y - zmp_y
+            error_x = zmp_x - unoriented_zmp_output_x
+            error_y = zmp_y - unoriented_zmp_output_y
+
+            u_x = (
+                -Gi * error_x - Gx @ com_state_x - Gd @ zmp_preview_poses[0, :]
+            ).item()
+            u_y = (
+                -Gi * error_y - Gx @ com_state_y - Gd @ zmp_preview_poses[1, :]
+            ).item()
+
+            com_state_x = A @ com_state_x + u_x * B
+            com_state_y = A @ com_state_y + u_y * B
+
+            com_breaks.append(t)
+            com_samples = np.hstack(
+                (
+                    com_samples,
+                    np.array([com_state_x[0, 0], com_state_y[1, 0], com_z_m])[:, None],
+                ),
+            )
+
+        unoriented_zmp_output_trajectory = PiecewisePolynomial.FirstOrderHold(
+            breaks=unoriented_zmp_output_breaks,
+            samples=unoriented_zmp_output_samples,
         )
-        print(com_trajectory.start_time(), com_trajectory.end_time())
-        print(com_trajectory.value(com_trajectory.start_time()))
-        print(com_trajectory.value(com_trajectory.end_time()))
-        input()
+        com_trajectory = PiecewisePolynomial.FirstOrderHold(
+            breaks=com_breaks,
+            samples=com_samples,
+        )
 
         if debug:
-            fig = plt.figure("Naive Footstep Trajectory")
+            fig = plt.figure("Preview controller COM Trajectory")
             ax = fig.gca()
             _plot_com_trajectory_on_ax(
                 ax=ax,
+                unoriented_zmp_output_trajectory=unoriented_zmp_output_trajectory,
                 com_trajectory=com_trajectory,
             )
             plt.show()
 
-        return com_trajectory
+        return unoriented_zmp_output_trajectory, com_trajectory
+
+    def compute_full_zmp_result(
+        self,
+        xy_path: XYPath,
+        stride_length_m: float,
+        swing_phase_time_s: float,
+        stance_phase_time_s: float,
+        initial_com: XYZPoint,
+        first_footstep: FootstepType = FootstepType.RIGHT,
+        debug: bool = False,
+    ) -> ZMPPlannerResult:
+
+        oriented_zmp_trajectory = self.plan_zmp_trajectory(
+            xy_path=xy_path,
+            stride_length_m=stride_length_m,
+            swing_phase_time_s=swing_phase_time_s,
+            stance_phase_time_s=stance_phase_time_s,
+            first_footstep=first_footstep,
+            debug=False,
+        )
+        unoriented_zmp_output_trajectory, com_trajectory = self.plan_com_trajectory(
+            initial_com=initial_com,
+            oriented_zmp_trajectory=oriented_zmp_trajectory,
+            debug=False,
+        )
+
+        if debug:
+            fig = plt.figure("ZMP trajectories")
+            ax = fig.gca()
+            _plot_zmp_trajectory_on_ax(
+                ax=ax,
+                oriented_zmp_trajectory=oriented_zmp_trajectory,
+                xy_path=xy_path,
+                left_foot_polygon=self.left_foot_polygon,
+                right_foot_polygon=self.right_foot_polygon,
+            )
+            _plot_com_trajectory_on_ax(
+                ax=ax,
+                unoriented_zmp_output_trajectory=unoriented_zmp_output_trajectory,
+                com_trajectory=com_trajectory,
+            )
+
+        return ZMPPlannerResult(
+            oriented_zmp_trajectory=oriented_zmp_trajectory,
+            unoriented_zmp_output_trajectory=unoriented_zmp_output_trajectory,
+            com_trajectory=com_trajectory,
+        )
