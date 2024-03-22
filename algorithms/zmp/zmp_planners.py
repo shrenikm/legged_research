@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from enum import Enum, auto
-from typing import Tuple
+from typing import Optional, Tuple
 
 import attr
 import matplotlib.patches as patches
@@ -91,7 +91,13 @@ def _plot_zmp_trajectory_on_ax(
         )
 
     # Plot ZMP/COP poses.
-    ax.plot(zmp_poses[:, 0], zmp_poses[:, 1], color="cornflowerblue")
+    ax.plot(
+        zmp_poses[:, 0],
+        zmp_poses[:, 1],
+        color="cornflowerblue",
+        label="ZMP trajectory",
+    )
+    ax.legend(loc="upper right")
 
 
 def _plot_com_trajectory_on_ax(
@@ -99,7 +105,13 @@ def _plot_com_trajectory_on_ax(
     unoriented_zmp_output_trajectory: PiecewisePolynomial,
     com_trajectory: PiecewisePolynomial,
     initialize_axes: bool = True,
+    ax2: Optional[Axes] = None,
+    ax3: Optional[Axes] = None,
 ) -> None:
+    """
+    Plots the com trajectory on the axis ax.
+    If ax2/ax3 are given, it plots the x/y trajectories against time.
+    """
     if initialize_axes:
         ax.set_xlabel("x (m)")
         ax.set_ylabel("y (m)")
@@ -110,7 +122,10 @@ def _plot_com_trajectory_on_ax(
 
     t = 0.0
     sample_time = 0.1
-    while t <= com_trajectory.end_time():
+    sample_times = [
+        i * sample_time for i in range(int(com_trajectory.end_time() / sample_time))
+    ]
+    for t in sample_times:
         unoriented_zmp_output_poses = np.vstack(
             (
                 unoriented_zmp_output_poses,
@@ -118,7 +133,6 @@ def _plot_com_trajectory_on_ax(
             )
         )
         com_poses = np.vstack((com_poses, com_trajectory.value(t).reshape(3)))
-        t += sample_time
 
     # Plot ZMP output poses
     ax.plot(
@@ -126,10 +140,54 @@ def _plot_com_trajectory_on_ax(
         unoriented_zmp_output_poses[:, 1],
         color="olive",
         linestyle="dotted",
+        label="ZMP output trajectory",
     )
 
     # Plot COM poses (Just x and y).
-    ax.plot(com_poses[:, 0], com_poses[:, 1], color="salmon")
+    ax.plot(
+        com_poses[:, 0],
+        com_poses[:, 1],
+        color="lightcoral",
+        label="COM trajectory",
+    )
+
+    if ax2 is not None:
+        ax2.set_xlabel("t (s)")
+        ax2.set_ylabel("x (m)")
+        ax2.plot(
+            sample_times,
+            com_poses[:, 0],
+            color="mediumslateblue",
+            label="COM x coordinates",
+        )
+        ax2.plot(
+            sample_times,
+            unoriented_zmp_output_poses[:, 0],
+            color="olive",
+            linestyle="dotted",
+            label="ZMP x coordinates",
+        )
+        ax2.legend(loc="upper right")
+
+    if ax3 is not None:
+        ax3.set_xlabel("t (s)")
+        ax3.set_ylabel("y (m)")
+        ax3.plot(
+            sample_times,
+            com_poses[:, 1],
+            color="mediumslateblue",
+            label="COM y coordinates",
+        )
+        ax3.plot(
+            sample_times,
+            unoriented_zmp_output_poses[:, 1],
+            color="olive",
+            linestyle="dotted",
+            label="ZMP y coordinates",
+        )
+        ax3.legend(loc="upper right")
+
+    ax.legend(loc="upper right")
 
 
 @attr.frozen
@@ -322,7 +380,7 @@ class NaiveZMPPlanner:
             return Gi, Gx, Gd
 
         com_z_m = initial_com[2]
-        preview_time_s = 1.0
+        preview_time_s = 2.0
         num_preview_points = int(preview_time_s / self.dt)
         num_zmp_trajectory_points = int(oriented_zmp_trajectory.end_time() / self.dt)
         # For the COM trajectory, we need 'num_preview_points' in the future, so we can't
@@ -344,7 +402,7 @@ class NaiveZMPPlanner:
         Qe = 1.0
         qx = 0.0
         Qx = qx * np.eye(3, dtype=np.float64)
-        R = 1e-3
+        R = 1e-6
 
         Gi, Gx, Gd = _compute_gains(A=A, B=B, C=C, Qx=Qx, Qe=Qe)
 
@@ -454,8 +512,7 @@ class NaiveZMPPlanner:
         )
 
         if debug:
-            fig = plt.figure("ZMP trajectories")
-            ax = fig.gca()
+            fig, (ax, ax2, ax3) = plt.subplots(nrows=3, ncols=1)
             _plot_zmp_trajectory_on_ax(
                 ax=ax,
                 oriented_zmp_trajectory=oriented_zmp_trajectory,
@@ -467,7 +524,10 @@ class NaiveZMPPlanner:
                 ax=ax,
                 unoriented_zmp_output_trajectory=unoriented_zmp_output_trajectory,
                 com_trajectory=com_trajectory,
+                ax2=ax2,
+                ax3=ax3,
             )
+            plt.show()
 
         return ZMPPlannerResult(
             oriented_zmp_trajectory=oriented_zmp_trajectory,
