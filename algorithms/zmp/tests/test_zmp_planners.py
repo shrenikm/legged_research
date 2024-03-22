@@ -93,6 +93,7 @@ def test_naive_zmp_planner(
         swing_phase_time_s=1.0,
         stance_phase_time_s=1.0,
         initial_com=np.hstack((straight_xy_path[0], 1.0)),
+        preview_time_s=2.,
         first_footstep=FootstepType.RIGHT,
         debug=debug,
     )

@@ -264,7 +264,7 @@ class NaiveZMPPlanner:
             xytheta_pose=xytheta_path[first_footstep_index],
             half_distance_m=0.5 * self.distance_between_feet,
         )
-        breaks.append(breaks[-1] + stance_phase_time_s)
+        breaks.append(breaks[-1] + 0.5 * swing_phase_time_s)
         if first_footstep == FootstepType.LEFT:
             samples = np.hstack((samples, left_xytheta_pose.reshape(3, 1)))
         elif first_footstep == FootstepType.RIGHT:
@@ -340,6 +340,7 @@ class NaiveZMPPlanner:
         self,
         initial_com: XYZPoint,
         oriented_zmp_trajectory: PiecewisePolynomial,
+        preview_time_s: float = 2.0,
         debug: bool = False,
     ) -> Tuple[PiecewisePolynomial, PiecewisePolynomial]:
 
@@ -380,7 +381,6 @@ class NaiveZMPPlanner:
             return Gi, Gx, Gd
 
         com_z_m = initial_com[2]
-        preview_time_s = 2.0
         num_preview_points = int(preview_time_s / self.dt)
         num_zmp_trajectory_points = int(oriented_zmp_trajectory.end_time() / self.dt)
         # For the COM trajectory, we need 'num_preview_points' in the future, so we can't
@@ -493,6 +493,7 @@ class NaiveZMPPlanner:
         swing_phase_time_s: float,
         stance_phase_time_s: float,
         initial_com: XYZPoint,
+        preview_time_s: float = 2.0,
         first_footstep: FootstepType = FootstepType.RIGHT,
         debug: bool = False,
     ) -> ZMPPlannerResult:
@@ -508,6 +509,7 @@ class NaiveZMPPlanner:
         unoriented_zmp_output_trajectory, com_trajectory = self.plan_com_trajectory(
             initial_com=initial_com,
             oriented_zmp_trajectory=oriented_zmp_trajectory,
+            preview_time_s=preview_time_s,
             debug=False,
         )
 
