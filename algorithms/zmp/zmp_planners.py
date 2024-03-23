@@ -264,10 +264,13 @@ class NaiveZMPPlanner:
             xytheta_pose=xytheta_path[first_footstep_index],
             half_distance_m=0.5 * self.distance_between_feet,
         )
-        breaks.append(breaks[-1] + 0.5 * swing_phase_time_s)
+        # Conservative
+        breaks.append(breaks[-1] + swing_phase_time_s)
         samples = np.hstack((samples, samples[:, -1].reshape(3, 1)))
-
         breaks.append(breaks[-1] + stance_phase_time_s)
+        # Non conservative, more continuous
+        #breaks.append(breaks[-1] + 2. * swing_phase_time_s + stance_phase_time_s)
+
         if first_footstep == FootstepType.LEFT:
             samples = np.hstack((samples, left_xytheta_pose.reshape(3, 1)))
         elif first_footstep == FootstepType.RIGHT:
@@ -305,10 +308,12 @@ class NaiveZMPPlanner:
                     self.max_orientation_delta,
                 )
 
-            # breaks.append(breaks[-1] + swing_phase_time_s + stance_phase_time_s)
+            # Conservative.
             breaks.append(breaks[-1] + swing_phase_time_s)
             samples = np.hstack((samples, samples[:, -1].reshape(3, 1)))
             breaks.append(breaks[-1] + stance_phase_time_s)
+            # Non conservative, more continuous
+            #breaks.append(breaks[-1] + swing_phase_time_s + stance_phase_time_s)
 
             if next_footstep == FootstepType.LEFT:
                 pose = np.copy(next_left_xytheta_pose)
@@ -406,10 +411,10 @@ class NaiveZMPPlanner:
             [self.dt**3 / 6.0, self.dt**2 / 2.0, self.dt], dtype=np.float64
         ).reshape(3, 1)
         C = np.array([1.0, 0.0, -com_z_m / self.g], dtype=np.float64).reshape(1, 3)
-        Qe = 1e-4
+        Qe = 1
         qx = 0.0
         Qx = qx * np.eye(3, dtype=np.float64)
-        R = 1e-6
+        R = 1e-3
 
         Gi, Gx, Gd = _compute_gains(A=A, B=B, C=C, Qx=Qx, Qe=Qe)
 
