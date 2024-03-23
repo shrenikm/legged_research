@@ -269,7 +269,7 @@ class NaiveZMPPlanner:
         samples = np.hstack((samples, samples[:, -1].reshape(3, 1)))
         breaks.append(breaks[-1] + stance_phase_time_s)
         # Non conservative, more continuous
-        #breaks.append(breaks[-1] + 2. * swing_phase_time_s + stance_phase_time_s)
+        # breaks.append(breaks[-1] + 2. * swing_phase_time_s + stance_phase_time_s)
 
         if first_footstep == FootstepType.LEFT:
             samples = np.hstack((samples, left_xytheta_pose.reshape(3, 1)))
@@ -313,7 +313,7 @@ class NaiveZMPPlanner:
             samples = np.hstack((samples, samples[:, -1].reshape(3, 1)))
             breaks.append(breaks[-1] + stance_phase_time_s)
             # Non conservative, more continuous
-            #breaks.append(breaks[-1] + swing_phase_time_s + stance_phase_time_s)
+            # breaks.append(breaks[-1] + swing_phase_time_s + stance_phase_time_s)
 
             if next_footstep == FootstepType.LEFT:
                 pose = np.copy(next_left_xytheta_pose)
@@ -411,7 +411,7 @@ class NaiveZMPPlanner:
             [self.dt**3 / 6.0, self.dt**2 / 2.0, self.dt], dtype=np.float64
         ).reshape(3, 1)
         C = np.array([1.0, 0.0, -com_z_m / self.g], dtype=np.float64).reshape(1, 3)
-        Qe = 1
+        Qe = 100
         qx = 0.0
         Qx = qx * np.eye(3, dtype=np.float64)
         R = 1e-3
@@ -429,13 +429,6 @@ class NaiveZMPPlanner:
 
         error_x, error_y, u_x, u_y = 0.0, 0.0, 0.0, 0.0
 
-        _traj = np.empty((3, 0))
-        _dt = 0.0
-        for _t in oriented_zmp_trajectory.get_segment_times():
-            z = oriented_zmp_trajectory.value(_t)
-            for _ in range(int(1.0 / self.dt)):
-                _traj = np.hstack((_traj, z))
-
         for i in range(num_com_trajectory_points):
 
             t = i * self.dt
@@ -445,7 +438,7 @@ class NaiveZMPPlanner:
                 _t * self.dt for _t in range(i + 1, i + 1 + num_preview_points)
             ]
             zmp_preview_poses = oriented_zmp_trajectory.vector_values(
-               preview_times_list
+                preview_times_list
             )
 
             unoriented_zmp_output_x = (C @ com_state_x).item()
