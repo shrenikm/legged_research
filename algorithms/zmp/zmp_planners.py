@@ -412,15 +412,6 @@ class NaiveZMPPlanner:
         R = 1e-6
 
         Gi, Gx, Gd = _compute_gains(A=A, B=B, C=C, Qx=Qx, Qe=Qe)
-        # print(Gd)
-        # print(Gi)
-        # print(Gx)
-        # print(A)
-        # print(B)
-        # print(C)
-        # print(Qx)
-        # print(Qe)
-        # input()
 
         # State is [x, xdot, xddot]/[y, ydot, yddot]
         com_state_x = np.array([initial_com[0], 0.0, 0.0], dtype=np.float64)[:, None]
@@ -433,6 +424,13 @@ class NaiveZMPPlanner:
 
         error_x, error_y, u_x, u_y = 0.0, 0.0, 0.0, 0.0
 
+        _traj = np.empty((3, 0))
+        _dt = 0.0
+        for _t in oriented_zmp_trajectory.get_segment_times():
+            z = oriented_zmp_trajectory.value(_t)
+            for _ in range(int(1.0 / self.dt)):
+                _traj = np.hstack((_traj, z))
+
         for i in range(num_com_trajectory_points):
 
             t = i * self.dt
@@ -442,7 +440,7 @@ class NaiveZMPPlanner:
                 _t * self.dt for _t in range(i + 1, i + 1 + num_preview_points)
             ]
             zmp_preview_poses = oriented_zmp_trajectory.vector_values(
-                preview_times_list
+               preview_times_list
             )
 
             unoriented_zmp_output_x = (C @ com_state_x).item()
@@ -458,8 +456,6 @@ class NaiveZMPPlanner:
                 ),
             )
 
-            # error_x = unoriented_zmp_output_x - zmp_x
-            # error_y = unoriented_zmp_output_y - zmp_y
             error_x = zmp_x - unoriented_zmp_output_x
             error_y = zmp_y - unoriented_zmp_output_y
 
@@ -480,7 +476,7 @@ class NaiveZMPPlanner:
                     np.array(
                         [
                             com_state_x[0, 0],
-                            com_state_y[1, 0],
+                            com_state_y[0, 0],
                             com_z_m,
                         ]
                     ).reshape(3, 1),
