@@ -90,10 +90,10 @@ def test_naive_zmp_planner(
     zmp_result = nfp.compute_full_zmp_result(
         xy_path=straight_xy_path,
         stride_length_m=0.5,
-        swing_phase_time_s=1.0,
-        stance_phase_time_s=1.0,
-        initial_com=np.hstack((straight_xy_path[0], 1.0)),
-        preview_time_s=2.,
+        swing_phase_time_s=1.,
+        stance_phase_time_s=1.,
+        initial_com=np.hstack((straight_xy_path[0], 0.22)),
+        preview_time_s=1.,
         first_footstep=FootstepType.RIGHT,
         debug=debug,
     )

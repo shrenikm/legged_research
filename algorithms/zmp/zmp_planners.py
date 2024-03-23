@@ -265,6 +265,9 @@ class NaiveZMPPlanner:
             half_distance_m=0.5 * self.distance_between_feet,
         )
         breaks.append(breaks[-1] + 0.5 * swing_phase_time_s)
+        samples = np.hstack((samples, samples[:, -1].reshape(3, 1)))
+
+        breaks.append(breaks[-1] + stance_phase_time_s)
         if first_footstep == FootstepType.LEFT:
             samples = np.hstack((samples, left_xytheta_pose.reshape(3, 1)))
         elif first_footstep == FootstepType.RIGHT:
@@ -302,7 +305,11 @@ class NaiveZMPPlanner:
                     self.max_orientation_delta,
                 )
 
-            breaks.append(breaks[-1] + swing_phase_time_s + stance_phase_time_s)
+            # breaks.append(breaks[-1] + swing_phase_time_s + stance_phase_time_s)
+            breaks.append(breaks[-1] + swing_phase_time_s)
+            samples = np.hstack((samples, samples[:, -1].reshape(3, 1)))
+            breaks.append(breaks[-1] + stance_phase_time_s)
+
             if next_footstep == FootstepType.LEFT:
                 pose = np.copy(next_left_xytheta_pose)
                 pose[2] = next_theta
@@ -399,12 +406,21 @@ class NaiveZMPPlanner:
             [self.dt**3 / 6.0, self.dt**2 / 2.0, self.dt], dtype=np.float64
         ).reshape(3, 1)
         C = np.array([1.0, 0.0, -com_z_m / self.g], dtype=np.float64).reshape(1, 3)
-        Qe = 1.0
+        Qe = 1e-4
         qx = 0.0
         Qx = qx * np.eye(3, dtype=np.float64)
         R = 1e-6
 
         Gi, Gx, Gd = _compute_gains(A=A, B=B, C=C, Qx=Qx, Qe=Qe)
+        # print(Gd)
+        # print(Gi)
+        # print(Gx)
+        # print(A)
+        # print(B)
+        # print(C)
+        # print(Qx)
+        # print(Qe)
+        # input()
 
         # State is [x, xdot, xddot]/[y, ydot, yddot]
         com_state_x = np.array([initial_com[0], 0.0, 0.0], dtype=np.float64)[:, None]
@@ -436,9 +452,9 @@ class NaiveZMPPlanner:
             unoriented_zmp_output_samples = np.hstack(
                 (
                     unoriented_zmp_output_samples,
-                    np.array([unoriented_zmp_output_x, unoriented_zmp_output_y])[
-                        :, None
-                    ],
+                    np.array(
+                        [unoriented_zmp_output_x, unoriented_zmp_output_y]
+                    ).reshape(2, 1),
                 ),
             )
 
@@ -461,7 +477,13 @@ class NaiveZMPPlanner:
             com_samples = np.hstack(
                 (
                     com_samples,
-                    np.array([com_state_x[0, 0], com_state_y[1, 0], com_z_m])[:, None],
+                    np.array(
+                        [
+                            com_state_x[0, 0],
+                            com_state_y[1, 0],
+                            com_z_m,
+                        ]
+                    ).reshape(3, 1),
                 ),
             )
 
