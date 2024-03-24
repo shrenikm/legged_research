@@ -89,6 +89,10 @@ def _solve_walking_step(
         ik_plant.GetBodyByName(name=rf_name),
     ).translation()
 
+    default_foot_height_m = left_foot_position[2]
+    distance_between_feet = np.abs(left_foot_position[1] - right_foot_position[1])
+    x_start = left_foot_position[0]
+
     left_foot_polygon = get_left_foot_polygon(
         legged_model_type=legged_model_type,
     )
@@ -97,27 +101,29 @@ def _solve_walking_step(
     )
     nfp = NaiveZMPPlanner(
         stride_length_m=0.5,
+        foot_lift_height_m=0.1,
+        default_foot_height_m=default_foot_height_m,
         swing_phase_time_s=1.0,
         stance_phase_time_s=0.5,
-        distance_between_feet=np.abs(left_foot_position[1] - right_foot_position[1]),
+        distance_between_feet=distance_between_feet,
         max_orientation_delta=np.deg2rad(30.0),
         left_foot_polygon=left_foot_polygon,
         right_foot_polygon=right_foot_polygon,
         preview_time_s=2.0,
         dt=1e-2,
     )
-    x_path = np.arange(0.0, 2.0, step=0.05)
+    path_length = 2.0
+    x_path = np.arange(x_start, x_start + path_length, step=0.05)
     xy_path = np.vstack((x_path, np.zeros_like(x_path))).T
     zmp_result = nfp.compute_full_zmp_result(
         xy_path=xy_path,
         initial_com=initial_com,
         first_footstep=FootstepType.RIGHT,
-        # debug=True,
+        debug=True,
     )
 
     stance_start_time = 0.0
-    stance_end_time = zmp_result.oriented_zmp_trajectory.get_segment_times()[1]
-    print(stance_start_time, stance_end_time)
+    stance_end_time = zmp_result.zmp_trajectory.get_segment_times()[1]
     dt = 0.1
     nk = int(nfp.stance_phase_time_s / dt)
 
@@ -127,20 +133,25 @@ def _solve_walking_step(
     com_vars_matrix = prog.NewContinuousVariables(rows=3, cols=nk, name="com_vars")
 
     for j in range(nk):
+        t = j * dt
         q_vars = q_vars_matrix[:, j]
         com_vars = com_vars_matrix[:, j]
-        com_desired = zmp_result.com_trajectory.value(t=j * dt).reshape(3)
+        com_desired = zmp_result.com_trajectory.value(t=t).reshape(3)
+        left_foot_xyztheta = zmp_result.left_foot_trajectory.value(t=t).reshape(4)
+        right_foot_xyztheta = zmp_result.right_foot_trajectory.value(t=t).reshape(4)
+        left_foot_xyz = left_foot_xyztheta[:3]
+        right_foot_xyz = right_foot_xyztheta[:3]
         print(j, com_desired, initial_com)
 
+        # TODO: Need to incorporate theta
         c1 = PointToPointDistanceConstraint(
             plant=ik_plant,
             frame1=ik_plant.GetFrameByName(lf_name),
             p_B1P1=alpha_pos,
             frame2=ik_plant.world_frame(),
-            p_B2P2=left_foot_position + alpha_pos,
+            p_B2P2=left_foot_xyz + alpha_pos,
             distance_lower=0.0,
             distance_upper=0.01,
-            # plant_context=ik_plant.CreateDefaultContext(),
             plant_context=ik_plant_context,
         )
         c2 = PointToPointDistanceConstraint(
@@ -148,10 +159,9 @@ def _solve_walking_step(
             frame1=ik_plant.GetFrameByName(lf_name),
             p_B1P1=-alpha_pos,
             frame2=ik_plant.world_frame(),
-            p_B2P2=left_foot_position - alpha_pos,
+            p_B2P2=left_foot_xyz - alpha_pos,
             distance_lower=0.0,
             distance_upper=0.01,
-            # plant_context=ik_plant.CreateDefaultContext(),
             plant_context=ik_plant_context,
         )
         c3 = PointToPointDistanceConstraint(
@@ -159,10 +169,9 @@ def _solve_walking_step(
             frame1=ik_plant.GetFrameByName(rf_name),
             p_B1P1=alpha_pos,
             frame2=ik_plant.world_frame(),
-            p_B2P2=right_foot_position + alpha_pos,
+            p_B2P2=right_foot_xyz + alpha_pos,
             distance_lower=0.0,
             distance_upper=0.01,
-            # plant_context=ik_plant.CreateDefaultContext(),
             plant_context=ik_plant_context,
         )
         c4 = PointToPointDistanceConstraint(
@@ -170,10 +179,9 @@ def _solve_walking_step(
             frame1=ik_plant.GetFrameByName(rf_name),
             p_B1P1=-alpha_pos,
             frame2=ik_plant.world_frame(),
-            p_B2P2=right_foot_position - alpha_pos,
+            p_B2P2=right_foot_xyz - alpha_pos,
             distance_lower=0.0,
             distance_upper=0.01,
-            # plant_context=ik_plant.CreateDefaultContext(),
             plant_context=ik_plant_context,
         )
         c5 = AngleBetweenVectorsConstraint(
@@ -185,7 +193,6 @@ def _solve_walking_step(
             b_B=np.array([0.0, 0.0, 1.0]),
             angle_lower=0.0,
             angle_upper=0.01,
-            # plant_context=ik_plant.CreateDefaultContext(),
             plant_context=ik_plant_context,
         )
         c6 = ComPositionConstraint(
@@ -272,14 +279,14 @@ def simulate_passive_robot(
         meshcat=meshcat,
     )
 
-    #AddDefaultVisualization(builder=builder, meshcat=meshcat)
+    # AddDefaultVisualization(builder=builder, meshcat=meshcat)
     diagram = builder.Build()
 
     simulator = Simulator(system=diagram)
-    #plant.get_actuation_input_port(model_instance=legged_model).FixValue(
+    # plant.get_actuation_input_port(model_instance=legged_model).FixValue(
     #    context=plant.GetMyContextFromRoot(root_context=simulator.get_context()),
     #    value=np.zeros(plant.num_actuators(), dtype=np.float64),
-    #)
+    # )
 
     with auto_meshcat_visualization(meshcat=meshcat, record=True):
         simulator.AdvanceTo(

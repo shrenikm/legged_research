@@ -154,7 +154,7 @@ def test_invalid_zmp_planner_construction(
 def test_naive_zmp_planner(
     left_foot_polygon: PolygonArray,
     right_foot_polygon: PolygonArray,
-    debug: bool = True,
+    debug: bool = False,
 ) -> None:
 
     nfp = NaiveZMPPlanner(

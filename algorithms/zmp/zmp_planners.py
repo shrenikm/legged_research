@@ -364,7 +364,7 @@ class NaiveZMPPlanner:
         if first_footstep == FootstepType.LEFT:
             # Lifted up pose at the mid point.
             _foot_pose = 0.5 * (left_xyztheta_pose + left_foot_samples[:, -1])
-            _foot_pose[2] = self.foot_lift_height_m
+            _foot_pose[2] += self.foot_lift_height_m
             left_foot_samples = np.hstack((left_foot_samples, _foot_pose.reshape(4, 1)))
             right_foot_samples = np.hstack(
                 (right_foot_samples, right_foot_samples[:, -1].reshape(4, 1))
@@ -372,7 +372,7 @@ class NaiveZMPPlanner:
         elif first_footstep == FootstepType.RIGHT:
             # Lifted up pose at the mid point.
             _foot_pose = 0.5 * (right_xyztheta_pose + right_foot_samples[:, -1])
-            _foot_pose[2] = self.foot_lift_height_m
+            _foot_pose[2] += self.foot_lift_height_m
             right_foot_samples = np.hstack(
                 (right_foot_samples, _foot_pose.reshape(4, 1))
             )
@@ -461,7 +461,7 @@ class NaiveZMPPlanner:
             if next_footstep == FootstepType.LEFT:
                 # Lifted up pose at the mid point.
                 _foot_pose = 0.5 * (left_xyztheta_pose + left_foot_samples[:, -1])
-                _foot_pose[2] = self.foot_lift_height_m
+                _foot_pose[2] += self.foot_lift_height_m
                 left_foot_samples = np.hstack(
                     (left_foot_samples, _foot_pose.reshape(4, 1))
                 )
@@ -471,7 +471,7 @@ class NaiveZMPPlanner:
             elif next_footstep == FootstepType.RIGHT:
                 # Lifted up pose at the mid point.
                 _foot_pose = 0.5 * (right_xyztheta_pose + right_foot_samples[:, -1])
-                _foot_pose[2] = self.foot_lift_height_m
+                _foot_pose[2] += self.foot_lift_height_m
                 right_foot_samples = np.hstack(
                     (right_foot_samples, _foot_pose.reshape(4, 1))
                 )
