@@ -23,6 +23,7 @@ from pydrake.systems.framework import Context, LeafSystem
 from pydrake.systems.rendering import MultibodyPositionToGeometryPose
 from pydrake.visualization import AddDefaultVisualization
 
+from algorithms.zmp.ik_planners import ZMPIKPlanner
 from algorithms.zmp.zmp_planners import FootstepType, NaiveZMPPlanner
 from common.custom_types import NpArrayMNf64
 from common.drake_utils import auto_meshcat_visualization
@@ -71,9 +72,7 @@ def _solve_walking_step(
         plant=ik_plant,
         legged_model_type=legged_model_type,
     )
-    nq = ik_plant.num_positions()
     ik_plant_context = ik_plant.CreateDefaultContext()
-    initial_q = ik_plant.GetDefaultPositions()
     initial_com = ik_plant.CalcCenterOfMassPositionInWorld(ik_plant_context)
     print("com:", initial_com)
 
@@ -99,12 +98,12 @@ def _solve_walking_step(
     right_foot_polygon = get_right_foot_polygon(
         legged_model_type=legged_model_type,
     )
-    nfp = NaiveZMPPlanner(
-        stride_length_m=0.5,
-        foot_lift_height_m=0.1,
+    nzp = NaiveZMPPlanner(
+        stride_length_m=0.3,
+        foot_lift_height_m=0.05,
         default_foot_height_m=default_foot_height_m,
         swing_phase_time_s=1.0,
-        stance_phase_time_s=0.5,
+        stance_phase_time_s=0.2,
         distance_between_feet=distance_between_feet,
         max_orientation_delta=np.deg2rad(30.0),
         left_foot_polygon=left_foot_polygon,
@@ -115,121 +114,23 @@ def _solve_walking_step(
     path_length = 2.0
     x_path = np.arange(x_start, x_start + path_length, step=0.05)
     xy_path = np.vstack((x_path, np.zeros_like(x_path))).T
-    zmp_result = nfp.compute_full_zmp_result(
+    zmp_result = nzp.compute_full_zmp_result(
         xy_path=xy_path,
         initial_com=initial_com,
         first_footstep=FootstepType.RIGHT,
-        debug=True,
+        #debug=True,
     )
 
-    stance_start_time = 0.0
-    stance_end_time = zmp_result.zmp_trajectory.get_segment_times()[1]
-    dt = 0.1
-    nk = int(nfp.stance_phase_time_s / dt)
-
-    alpha_pos = np.array([0.1, 0.0, 0.0])
-    prog = MathematicalProgram()
-    q_vars_matrix = prog.NewContinuousVariables(rows=nq, cols=nk, name="q_vars")
-    com_vars_matrix = prog.NewContinuousVariables(rows=3, cols=nk, name="com_vars")
-
-    for j in range(nk):
-        t = j * dt
-        q_vars = q_vars_matrix[:, j]
-        com_vars = com_vars_matrix[:, j]
-        com_desired = zmp_result.com_trajectory.value(t=t).reshape(3)
-        left_foot_xyztheta = zmp_result.left_foot_trajectory.value(t=t).reshape(4)
-        right_foot_xyztheta = zmp_result.right_foot_trajectory.value(t=t).reshape(4)
-        left_foot_xyz = left_foot_xyztheta[:3]
-        right_foot_xyz = right_foot_xyztheta[:3]
-        print(j, com_desired, initial_com)
-
-        # TODO: Need to incorporate theta
-        c1 = PointToPointDistanceConstraint(
-            plant=ik_plant,
-            frame1=ik_plant.GetFrameByName(lf_name),
-            p_B1P1=alpha_pos,
-            frame2=ik_plant.world_frame(),
-            p_B2P2=left_foot_xyz + alpha_pos,
-            distance_lower=0.0,
-            distance_upper=0.01,
-            plant_context=ik_plant_context,
-        )
-        c2 = PointToPointDistanceConstraint(
-            plant=ik_plant,
-            frame1=ik_plant.GetFrameByName(lf_name),
-            p_B1P1=-alpha_pos,
-            frame2=ik_plant.world_frame(),
-            p_B2P2=left_foot_xyz - alpha_pos,
-            distance_lower=0.0,
-            distance_upper=0.01,
-            plant_context=ik_plant_context,
-        )
-        c3 = PointToPointDistanceConstraint(
-            plant=ik_plant,
-            frame1=ik_plant.GetFrameByName(rf_name),
-            p_B1P1=alpha_pos,
-            frame2=ik_plant.world_frame(),
-            p_B2P2=right_foot_xyz + alpha_pos,
-            distance_lower=0.0,
-            distance_upper=0.01,
-            plant_context=ik_plant_context,
-        )
-        c4 = PointToPointDistanceConstraint(
-            plant=ik_plant,
-            frame1=ik_plant.GetFrameByName(rf_name),
-            p_B1P1=-alpha_pos,
-            frame2=ik_plant.world_frame(),
-            p_B2P2=right_foot_xyz - alpha_pos,
-            distance_lower=0.0,
-            distance_upper=0.01,
-            plant_context=ik_plant_context,
-        )
-        c5 = AngleBetweenVectorsConstraint(
-            plant=ik_plant,
-            # TODO: Function.
-            frameA=ik_plant.GetFrameByName("torso_link"),
-            a_A=np.array([0.0, 0.0, 1.0]),
-            frameB=ik_plant.world_frame(),
-            b_B=np.array([0.0, 0.0, 1.0]),
-            angle_lower=0.0,
-            angle_upper=0.01,
-            plant_context=ik_plant_context,
-        )
-        c6 = ComPositionConstraint(
-            plant=ik_plant,
-            model_instances=None,
-            expressed_frame=ik_plant.world_frame(),
-            plant_context=ik_plant_context,
-        )
-
-        prog.AddConstraint(c1, vars=q_vars)
-        prog.AddConstraint(c2, vars=q_vars)
-        prog.AddConstraint(c3, vars=q_vars)
-        prog.AddConstraint(c4, vars=q_vars)
-        prog.AddConstraint(c5, vars=q_vars)
-        prog.AddConstraint(c6, vars=np.hstack((q_vars, com_vars)))
-
-        # Fix everything other than the leg joints.
-        for i in range(17, nq):
-            prog.AddConstraint(q_vars[i] == 0)
-        # COM constraint.
-        for i in range(3):
-            prog.AddConstraint(com_vars[i] == com_desired[i])
-
-    for i in range(nq):
-        prog.AddConstraint(q_vars_matrix[i, 0] == initial_q[i])
-    for j in range(nk - 1):
-        for i in range(7, 17):
-            prog.AddCost(1.0 * (q_vars_matrix[i, j + 1] - q_vars_matrix[i, j]) ** 2.0)
-
-    for j in range(nk):
-        prog.SetInitialGuess(q_vars_matrix[0:4, j], np.array([1.0, 0.0, 0.0, 0.0]))
-
-    result = Solve(prog=prog)
-    print("Success:", result.is_success())
-    print("Solution result:", result.get_solution_result())
-
-    return result.GetSolution(q_vars_matrix)
+    ikzp = ZMPIKPlanner(
+        legged_model_type=legged_model_type,
+        plant=ik_plant,
+        plant_context=ik_plant_context,
+        sample_time_s=0.05,
+        alpha=0.1,
+    )
+    return ikzp.compute_positions(
+        zmp_result=zmp_result,
+    )
 
 
 def simulate_passive_robot(
@@ -256,11 +157,12 @@ def simulate_passive_robot(
 
     geometry_pose = builder.AddSystem(MultibodyPositionToGeometryPose(plant=plant))
 
+    wait_time = 0.5
     time_spaced_positions = builder.AddSystem(
         TimeSpacedPositions(
             plant=plant,
             positions=positions,
-            wait_time=1.0,
+            wait_time=wait_time,
         ),
     )
 
@@ -288,9 +190,10 @@ def simulate_passive_robot(
     #    value=np.zeros(plant.num_actuators(), dtype=np.float64),
     # )
 
+    sim_time = wait_time * positions.shape[1]
     with auto_meshcat_visualization(meshcat=meshcat, record=True):
         simulator.AdvanceTo(
-            boundary_time=10.0,
+            boundary_time=sim_time,
             interruptible=True,
         )
 

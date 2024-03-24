@@ -32,12 +32,6 @@ def right_foot_polygon() -> PolygonArray:
     )
 
 
-def test_footstep_type() -> None:
-
-    assert FootstepType.LEFT.invert() == FootstepType.RIGHT
-    assert FootstepType.RIGHT.invert() == FootstepType.LEFT
-
-
 def test_invalid_zmp_planner_construction(
     left_foot_polygon: PolygonArray,
     right_foot_polygon: PolygonArray,

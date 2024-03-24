@@ -13,6 +13,7 @@ from pydrake.math import RotationMatrix
 from pydrake.trajectories import PiecewisePolynomial
 from scipy.linalg import solve_discrete_are
 
+from algorithms.zmp.utils import FootstepType
 from common.attr_utils import AttrsValidators
 from common.constants import ACC_DUE_TO_GRAVITY
 from common.custom_types import (
@@ -230,19 +231,6 @@ def _xytheta_pose_to_xyztheta_pose(
     xyztheta_pose[3] = xytheta_pose[2]
 
     return xyztheta_pose
-
-
-class FootstepType(Enum):
-    LEFT = auto()
-    RIGHT = auto()
-
-    def invert(self) -> FootstepType:
-        if self == FootstepType.LEFT:
-            return FootstepType.RIGHT
-        elif self == FootstepType.RIGHT:
-            return FootstepType.LEFT
-        else:
-            raise NotImplementedError
 
 
 @attr.frozen
