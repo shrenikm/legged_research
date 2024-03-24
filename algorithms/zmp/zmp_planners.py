@@ -435,12 +435,12 @@ class NaiveZMPPlanner:
 
         unoriented_zmp_output_breaks = []
         unoriented_zmp_output_samples = np.empty((2, 0), dtype=np.float64)
-        com_breaks = []
-        com_samples = np.empty((3, 0), dtype=np.float64)
+        com_breaks = [0.0]
+        com_samples = np.copy(initial_com).reshape(3, 1)
 
         error_x, error_y, u_x, u_y = 0.0, 0.0, 0.0, 0.0
 
-        for i in range(num_com_trajectory_points):
+        for i in range(1, num_com_trajectory_points):
 
             t = i * self.dt
             zmp_x, zmp_y, _ = oriented_zmp_trajectory.value(t=t)

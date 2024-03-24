@@ -162,20 +162,20 @@ def get_default_positions_for_legged_model_type(
     }[legged_model_type]
 
 
-def get_left_ankle_frame_name(legged_model_type: LeggedModelType) -> str:
+def get_left_foot_frame_name(legged_model_type: LeggedModelType) -> str:
     if legged_model_type == LeggedModelType.H1:
         return "left_ankle_link"
     else:
         raise NotImplementedError
 
 
-def get_right_ankle_frame_name(legged_model_type: LeggedModelType) -> str:
+def get_right_foot_frame_name(legged_model_type: LeggedModelType) -> str:
     if legged_model_type == LeggedModelType.H1:
         return "right_ankle_link"
     raise NotImplementedError
 
 
-def get_left_footprint_polygon(
+def get_left_foot_polygon(
     legged_model_type: LeggedModelType,
 ) -> PolygonArray:
     if legged_model_type == LeggedModelType.H1:
@@ -185,7 +185,8 @@ def get_left_footprint_polygon(
         )
     raise NotImplementedError
 
-def get_right_footprint_polygon(
+
+def get_right_foot_polygon(
     legged_model_type: LeggedModelType,
 ) -> PolygonArray:
     if legged_model_type == LeggedModelType.H1:
@@ -194,7 +195,6 @@ def get_right_footprint_polygon(
             size_y=0.015,
         )
     raise NotImplementedError
-
 
 
 def add_legged_model_to_plant_and_finalize(

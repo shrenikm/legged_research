@@ -11,16 +11,16 @@ from common.model_utils import (
     get_default_positions_for_legged_model_type,
     get_description_dirname_for_legged_model_type,
     get_description_subdir_for_legged_model_type,
-    get_left_ankle_frame_name,
-    get_left_footprint_polygon,
+    get_left_foot_frame_name,
+    get_left_foot_polygon,
     get_legged_model_urdf_path,
     get_num_actuators_for_legged_model_type,
     get_num_positions_for_legged_model_type,
     get_num_velocities_for_legged_model_type,
     get_object_model_urdf_path,
     get_object_models_directory_path,
-    get_right_ankle_frame_name,
-    get_right_footprint_polygon,
+    get_right_foot_frame_name,
+    get_right_foot_polygon,
     get_robot_models_directory_path,
 )
 from common.testing_utils import execute_pytest_file
@@ -142,23 +142,23 @@ def test_get_default_positions_for_legged_model_type() -> None:
     )
 
 
-def test_get_ankle_frame_name() -> None:
+def test_get_foot_frame_name() -> None:
 
     legged_model_type = LeggedModelType.H1
     assert (
-        get_left_ankle_frame_name(legged_model_type=legged_model_type)
+        get_left_foot_frame_name(legged_model_type=legged_model_type)
         == "left_ankle_link"
     )
     assert (
-        get_right_ankle_frame_name(legged_model_type=legged_model_type)
+        get_right_foot_frame_name(legged_model_type=legged_model_type)
         == "right_ankle_link"
     )
 
 
-def test_get_footprint_polygon() -> None:
+def test_get_foot_polygon() -> None:
 
     legged_model_type = LeggedModelType.H1
-    expected_footprint_polygon = np.array(
+    expected_foot_polygon = np.array(
         [
             [-0.15, 0.0075],
             [0.15, 0.0075],
@@ -167,12 +167,12 @@ def test_get_footprint_polygon() -> None:
         ]
     )
     np.testing.assert_array_equal(
-        get_left_footprint_polygon(legged_model_type=legged_model_type),
-        expected_footprint_polygon,
+        get_left_foot_polygon(legged_model_type=legged_model_type),
+        expected_foot_polygon,
     )
     np.testing.assert_array_equal(
-        get_right_footprint_polygon(legged_model_type=legged_model_type),
-        expected_footprint_polygon,
+        get_right_foot_polygon(legged_model_type=legged_model_type),
+        expected_foot_polygon,
     )
 
 
