@@ -95,17 +95,54 @@ def _plot_zmp_trajectory_on_ax(
     ax.legend(loc="upper right")
 
 
+def _plot_foot_trajectory_on_ax(
+    ax1: Axes,
+    ax2: Axes,
+    left_foot_trajectory: PiecewisePolynomial,
+    right_foot_trajectory: PiecewisePolynomial,
+    initialize_axes: bool = True,
+) -> None:
+    """
+    Plots the x/y and height trajectories of the left and right feet
+    on ax1 and ax2 respectively.
+    """
+    if initialize_axes:
+        ax1.set_xlabel("x (m)")
+        ax1.set_ylabel("y (m)")
+        ax1.set_aspect(1.0)
+
+        ax2.set_xlabel("t (x)")
+        ax2.set_ylabel("z (m)")
+
+    sample_time = 0.1
+    sample_times = [
+        i * sample_time
+        for i in range(int(left_foot_trajectory.end_time() / sample_time))
+    ]
+    lft = left_foot_trajectory.vector_values(sample_times)
+    rft = right_foot_trajectory.vector_values(sample_times)
+
+    ax1.plot(lft[0, :], lft[1, :], label="left foot", color="coral")
+    ax1.plot(rft[0, :], rft[1, :], label="right foot", color="royalblue")
+
+    ax2.plot(sample_times, lft[2, :], label="left z", color="coral")
+    ax2.plot(sample_times, rft[2, :], label="right z", color="royalblue")
+
+    ax1.legend(loc="upper right")
+    ax2.legend(loc="upper right")
+
+
 def _plot_com_trajectory_on_ax(
     ax: Axes,
+    ax1: Axes,
+    ax2: Axes,
     zmp_output_trajectory: PiecewisePolynomial,
     com_trajectory: PiecewisePolynomial,
     initialize_axes: bool = True,
-    ax2: Optional[Axes] = None,
-    ax3: Optional[Axes] = None,
 ) -> None:
     """
     Plots the com trajectory on the axis ax.
-    If ax2/ax3 are given, it plots the x/y trajectories against time.
+    Plots the x/y trajectories in ax2/ax3.
     """
     if initialize_axes:
         ax.set_xlabel("x (m)")
@@ -146,41 +183,39 @@ def _plot_com_trajectory_on_ax(
         label="COM trajectory",
     )
 
-    if ax2 is not None:
-        ax2.set_xlabel("t (s)")
-        ax2.set_ylabel("x (m)")
-        ax2.plot(
-            sample_times,
-            com_poses[:, 0],
-            color="mediumslateblue",
-            label="COM x coordinates",
-        )
-        ax2.plot(
-            sample_times,
-            zmp_output_poses[:, 0],
-            color="olive",
-            linestyle="dotted",
-            label="ZMP x coordinates",
-        )
-        ax2.legend(loc="upper right")
+    ax1.set_xlabel("t (s)")
+    ax1.set_ylabel("x (m)")
+    ax1.plot(
+        sample_times,
+        com_poses[:, 0],
+        color="mediumslateblue",
+        label="COM x coordinates",
+    )
+    ax1.plot(
+        sample_times,
+        zmp_output_poses[:, 0],
+        color="olive",
+        linestyle="dotted",
+        label="ZMP x coordinates",
+    )
+    ax1.legend(loc="upper right")
 
-    if ax3 is not None:
-        ax3.set_xlabel("t (s)")
-        ax3.set_ylabel("y (m)")
-        ax3.plot(
-            sample_times,
-            com_poses[:, 1],
-            color="mediumslateblue",
-            label="COM y coordinates",
-        )
-        ax3.plot(
-            sample_times,
-            zmp_output_poses[:, 1],
-            color="olive",
-            linestyle="dotted",
-            label="ZMP y coordinates",
-        )
-        ax3.legend(loc="upper right")
+    ax2.set_xlabel("t (s)")
+    ax2.set_ylabel("y (m)")
+    ax2.plot(
+        sample_times,
+        com_poses[:, 1],
+        color="mediumslateblue",
+        label="COM y coordinates",
+    )
+    ax2.plot(
+        sample_times,
+        zmp_output_poses[:, 1],
+        color="olive",
+        linestyle="dotted",
+        label="ZMP y coordinates",
+    )
+    ax2.legend(loc="upper right")
 
     ax.legend(loc="upper right")
 
@@ -511,6 +546,8 @@ class NaiveZMPPlanner:
         if debug:
             fig = plt.figure("Naive Footstep Trajectory")
             ax = fig.gca()
+
+            _, (ax1, ax2) = plt.subplots(nrows=2, ncols=1)
             _plot_zmp_trajectory_on_ax(
                 ax=ax,
                 left_foot_trajectory=left_foot_trajectory,
@@ -519,6 +556,13 @@ class NaiveZMPPlanner:
                 xy_path=xy_path,
                 left_foot_polygon=self.left_foot_polygon,
                 right_foot_polygon=self.right_foot_polygon,
+                initialize_axes=True,
+            )
+            _plot_foot_trajectory_on_ax(
+                ax1=ax1,
+                ax2=ax2,
+                left_foot_trajectory=left_foot_trajectory,
+                right_foot_trajectory=right_foot_trajectory,
                 initialize_axes=True,
             )
             plt.show()
@@ -665,8 +709,12 @@ class NaiveZMPPlanner:
         if debug:
             fig = plt.figure("Preview controller COM Trajectory")
             ax = fig.gca()
+
+            _, (ax1, ax2) = plt.subplots(nrows=2, ncols=1)
             _plot_com_trajectory_on_ax(
                 ax=ax,
+                ax1=ax1,
+                ax2=ax2,
                 zmp_output_trajectory=zmp_output_trajectory,
                 com_trajectory=com_trajectory,
             )
@@ -698,7 +746,10 @@ class NaiveZMPPlanner:
         )
 
         if debug:
-            fig, (ax, ax2, ax3) = plt.subplots(nrows=3, ncols=1)
+            fig = plt.figure("ZMP trajectories")
+            ax = fig.gca()
+
+            _, axes = plt.subplots(nrows=2, ncols=2)
             _plot_zmp_trajectory_on_ax(
                 ax=ax,
                 left_foot_trajectory=left_foot_trajectory,
@@ -707,13 +758,22 @@ class NaiveZMPPlanner:
                 xy_path=xy_path,
                 left_foot_polygon=self.left_foot_polygon,
                 right_foot_polygon=self.right_foot_polygon,
+                initialize_axes=True,
+            )
+            _plot_foot_trajectory_on_ax(
+                ax1=axes[0, 1],
+                ax2=axes[1, 1],
+                left_foot_trajectory=left_foot_trajectory,
+                right_foot_trajectory=right_foot_trajectory,
+                initialize_axes=True,
             )
             _plot_com_trajectory_on_ax(
                 ax=ax,
+                ax1=axes[0, 0],
+                ax2=axes[1, 0],
                 zmp_output_trajectory=zmp_output_trajectory,
                 com_trajectory=com_trajectory,
-                ax2=ax2,
-                ax3=ax3,
+                initialize_axes=False,
             )
             plt.show()
 
