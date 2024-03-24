@@ -184,7 +184,7 @@ def _solve_walking_step(
             frameB=ik_plant.world_frame(),
             b_B=np.array([0.0, 0.0, 1.0]),
             angle_lower=0.0,
-            angle_upper=0.05,
+            angle_upper=0.01,
             # plant_context=ik_plant.CreateDefaultContext(),
             plant_context=ik_plant_context,
         )
