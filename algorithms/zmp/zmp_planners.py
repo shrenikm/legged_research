@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from enum import Enum, auto
+from functools import partial
 from typing import Optional, Tuple
 
 import attr
@@ -9,7 +10,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.axes import Axes
 from pydrake.math import RotationMatrix
-from pydrake.trajectories import PiecewisePolynomial, Trajectory
+from pydrake.trajectories import PiecewisePolynomial
 from scipy.linalg import solve_discrete_are
 
 from common.attr_utils import AttrsValidators
@@ -20,8 +21,9 @@ from common.custom_types import (
     NpVectorNf64,
     PolygonArray,
     XYPath,
-    XYPoint,
+    XYThetaPose,
     XYZPoint,
+    XYZThetaPose,
 )
 from numeric.geometry.path_utils import (
     compute_oriented_xy_path,
@@ -34,7 +36,9 @@ from numeric.geometry.path_utils import (
 
 def _plot_zmp_trajectory_on_ax(
     ax: Axes,
-    oriented_zmp_trajectory: PiecewisePolynomial,
+    left_foot_trajectory: PiecewisePolynomial,
+    right_foot_trajectory: PiecewisePolynomial,
+    zmp_trajectory: PiecewisePolynomial,
     xy_path: XYPath,
     left_foot_polygon: PolygonArray,
     right_foot_polygon: PolygonArray,
@@ -56,25 +60,29 @@ def _plot_zmp_trajectory_on_ax(
     # Plot xy_path
     ax.plot(xy_path[:, 0], xy_path[:, 1], linestyle="--", color="green")
 
-    zmp_poses = np.empty((0, 3), dtype=np.float64)
+    zmp_poses = np.empty((0, 2), dtype=np.float64)
 
-    for t in oriented_zmp_trajectory.get_segment_times():
-        zmp_poses = np.vstack((zmp_poses, oriented_zmp_trajectory.value(t).reshape(3)))
-        footstep_pose = oriented_zmp_trajectory.value(t)
+    for t in zmp_trajectory.get_segment_times():
+        zmp_poses = np.vstack((zmp_poses, zmp_trajectory.value(t).reshape(2)))
+
+        left_foot_pose = left_foot_trajectory.value(t)
+        right_foot_pose = right_foot_trajectory.value(t)
+        theta = left_foot_pose[3, 0]
+
         rot_mat = RotationMatrix.MakeXRotation(
-            theta=footstep_pose[2].item(),
+            theta=theta,
         ).matrix()[1:, 1:]
 
         lf = rot_mat @ left_foot_polygon.T
-        lf += footstep_pose[:2]
+        lf += left_foot_pose[:2]
         rf = rot_mat @ right_foot_polygon.T
-        rf += footstep_pose[:2]
+        rf += right_foot_pose[:2]
 
         ax.add_patch(
-            patches.Polygon(xy=lf.T, fill=False, color="brown"),
+            patches.Polygon(xy=lf.T, fill=False, color="rosybrown"),
         )
         ax.add_patch(
-            patches.Polygon(xy=lf.T, fill=False, color="brown"),
+            patches.Polygon(xy=rf.T, fill=False, color="brown"),
         )
 
     # Plot ZMP/COP poses.
@@ -89,7 +97,7 @@ def _plot_zmp_trajectory_on_ax(
 
 def _plot_com_trajectory_on_ax(
     ax: Axes,
-    unoriented_zmp_output_trajectory: PiecewisePolynomial,
+    zmp_output_trajectory: PiecewisePolynomial,
     com_trajectory: PiecewisePolynomial,
     initialize_axes: bool = True,
     ax2: Optional[Axes] = None,
@@ -105,7 +113,7 @@ def _plot_com_trajectory_on_ax(
         ax.set_aspect(1.0)
 
     com_poses = np.empty((0, 3), dtype=np.float64)
-    unoriented_zmp_output_poses = np.empty((0, 2), dtype=np.float64)
+    zmp_output_poses = np.empty((0, 2), dtype=np.float64)
 
     t = 0.0
     sample_time = 0.1
@@ -113,18 +121,18 @@ def _plot_com_trajectory_on_ax(
         i * sample_time for i in range(int(com_trajectory.end_time() / sample_time))
     ]
     for t in sample_times:
-        unoriented_zmp_output_poses = np.vstack(
+        zmp_output_poses = np.vstack(
             (
-                unoriented_zmp_output_poses,
-                unoriented_zmp_output_trajectory.value(t).reshape(2),
+                zmp_output_poses,
+                zmp_output_trajectory.value(t).reshape(2),
             )
         )
         com_poses = np.vstack((com_poses, com_trajectory.value(t).reshape(3)))
 
     # Plot ZMP output poses
     ax.plot(
-        unoriented_zmp_output_poses[:, 0],
-        unoriented_zmp_output_poses[:, 1],
+        zmp_output_poses[:, 0],
+        zmp_output_poses[:, 1],
         color="olive",
         linestyle="dotted",
         label="ZMP output trajectory",
@@ -149,7 +157,7 @@ def _plot_com_trajectory_on_ax(
         )
         ax2.plot(
             sample_times,
-            unoriented_zmp_output_poses[:, 0],
+            zmp_output_poses[:, 0],
             color="olive",
             linestyle="dotted",
             label="ZMP x coordinates",
@@ -167,7 +175,7 @@ def _plot_com_trajectory_on_ax(
         )
         ax3.plot(
             sample_times,
-            unoriented_zmp_output_poses[:, 1],
+            zmp_output_poses[:, 1],
             color="olive",
             linestyle="dotted",
             label="ZMP y coordinates",
@@ -175,6 +183,18 @@ def _plot_com_trajectory_on_ax(
         ax3.legend(loc="upper right")
 
     ax.legend(loc="upper right")
+
+
+def _xytheta_pose_to_xyztheta_pose(
+    xytheta_pose: XYThetaPose,
+    z: float,
+) -> XYZThetaPose:
+    xyztheta_pose = np.zeros(4, dtype=np.float64)
+    xyztheta_pose[:2] = xytheta_pose[:2]
+    xyztheta_pose[2] = z
+    xyztheta_pose[3] = xytheta_pose[2]
+
+    return xyztheta_pose
 
 
 class FootstepType(Enum):
@@ -192,9 +212,10 @@ class FootstepType(Enum):
 
 @attr.frozen
 class ZMPPlannerResult:
-    oriented_zmp_trajectory: PiecewisePolynomial
-    unoriented_zmp_output_trajectory: PiecewisePolynomial
-    # TODO: Can do better than piecewise here.
+    left_foot_trajectory: PiecewisePolynomial
+    right_foot_trajectory: PiecewisePolynomial
+    zmp_trajectory: PiecewisePolynomial
+    zmp_output_trajectory: PiecewisePolynomial
     com_trajectory: PiecewisePolynomial
 
 
@@ -211,6 +232,10 @@ class NaiveZMPPlanner:
     stride_length_m: float = attr.ib(
         validator=AttrsValidators.positive_validator(),
     )
+    foot_lift_height_m: float = attr.ib(
+        validator=AttrsValidators.positive_validator(),
+    )
+    default_foot_height_m: float
     swing_phase_time_s: float = attr.ib(
         validator=AttrsValidators.positive_validator(),
     )
@@ -240,28 +265,47 @@ class NaiveZMPPlanner:
         xy_path: XYPath,
         first_footstep: FootstepType = FootstepType.RIGHT,
         debug: bool = False,
-    ) -> PiecewisePolynomial:
+    ) -> Tuple[PiecewisePolynomial, PiecewisePolynomial, PiecewisePolynomial]:
         assert xy_path.shape[1] == 2
+
+        f_xyzt = partial(_xytheta_pose_to_xyztheta_pose, z=self.default_foot_height_m)
 
         xytheta_path = compute_oriented_xy_path(
             xy_path=xy_path,
         )
 
-        # Assuming that initially, both feet are on either side of the first
-        # point on the xy path. COP here is  ~ assumed to be equal to this value.
-        breaks = [0.0]
-        samples = np.copy(xytheta_path[0]).reshape(3, 1)
-
-        # First we shift the COP to the non first step leg.
-        breaks.append(self.stance_phase_time_s)
+        # Initial foot poses.
         left_xytheta_pose, right_xytheta_pose = compute_xytheta_side_poses(
             xytheta_pose=xytheta_path[0],
             half_distance_m=0.5 * self.distance_between_feet,
         )
+        left_xyztheta_pose = f_xyzt(left_xytheta_pose)
+        right_xyztheta_pose = f_xyzt(right_xytheta_pose)
+
+        # Assuming that initially, both feet are on either side of the first
+        # point on the xy path. COP here is  ~ assumed to be equal to this value.
+        left_foot_breaks, right_foot_breaks, zmp_breaks = [0.0], [0.0], [0.0]
+        left_foot_samples = np.copy(left_xyztheta_pose).reshape(4, 1)
+        right_foot_samples = np.copy(right_xyztheta_pose).reshape(4, 1)
+        zmp_samples = np.copy(xy_path[0]).reshape(2, 1)
+
+        # First we shift the COP to the non first step leg. Feet are still placed
+        # on the same positions on the ground.
+        left_foot_breaks.append(self.stance_phase_time_s)
+        right_foot_breaks.append(self.stance_phase_time_s)
+        zmp_breaks.append(self.stance_phase_time_s)
+
+        left_foot_samples = np.hstack(
+            (left_foot_samples, left_foot_samples[:, -1].reshape(4, 1))
+        )
+        right_foot_samples = np.hstack(
+            (right_foot_samples, right_foot_samples[:, -1].reshape(4, 1))
+        )
+
         if first_footstep == FootstepType.LEFT:
-            samples = np.hstack((samples, right_xytheta_pose.reshape(3, 1)))
+            zmp_samples = np.hstack((zmp_samples, right_xytheta_pose[:2].reshape(2, 1)))
         elif first_footstep == FootstepType.RIGHT:
-            samples = np.hstack((samples, left_xytheta_pose.reshape(3, 1)))
+            zmp_samples = np.hstack((zmp_samples, left_xytheta_pose[:2].reshape(2, 1)))
         else:
             raise NotImplementedError
 
@@ -276,17 +320,69 @@ class NaiveZMPPlanner:
             xytheta_pose=xytheta_path[first_footstep_index],
             half_distance_m=0.5 * self.distance_between_feet,
         )
-        # Conservative
-        breaks.append(breaks[-1] + self.swing_phase_time_s)
-        samples = np.hstack((samples, samples[:, -1].reshape(3, 1)))
-        breaks.append(breaks[-1] + self.stance_phase_time_s)
-        # Non conservative, more continuous
-        # breaks.append(breaks[-1] + 2. * swing_phase_time_s + stance_phase_time_s)
+        left_xyztheta_pose = f_xyzt(left_xytheta_pose)
+        right_xyztheta_pose = f_xyzt(right_xytheta_pose)
+
+        # Mid swing feet positions.
+        left_foot_breaks.append(left_foot_breaks[-1] + 0.5 * self.swing_phase_time_s)
+        right_foot_breaks.append(right_foot_breaks[-1] + 0.5 * self.swing_phase_time_s)
+        if first_footstep == FootstepType.LEFT:
+            # Lifted up pose at the mid point.
+            _foot_pose = 0.5 * (left_xyztheta_pose + left_foot_samples[:, -1])
+            _foot_pose[2] = self.foot_lift_height_m
+            left_foot_samples = np.hstack((left_foot_samples, _foot_pose.reshape(4, 1)))
+            right_foot_samples = np.hstack(
+                (right_foot_samples, right_foot_samples[:, -1].reshape(4, 1))
+            )
+        elif first_footstep == FootstepType.RIGHT:
+            # Lifted up pose at the mid point.
+            _foot_pose = 0.5 * (right_xyztheta_pose + right_foot_samples[:, -1])
+            _foot_pose[2] = self.foot_lift_height_m
+            right_foot_samples = np.hstack(
+                (right_foot_samples, _foot_pose.reshape(4, 1))
+            )
+            left_foot_samples = np.hstack(
+                (left_foot_samples, left_foot_samples[:, -1].reshape(4, 1))
+            )
+        else:
+            raise NotImplementedError
+
+        left_foot_breaks.append(left_foot_breaks[-1] + 0.5 * self.swing_phase_time_s)
+        right_foot_breaks.append(right_foot_breaks[-1] + 0.5 * self.swing_phase_time_s)
+        zmp_breaks.append(zmp_breaks[-1] + self.swing_phase_time_s)
 
         if first_footstep == FootstepType.LEFT:
-            samples = np.hstack((samples, left_xytheta_pose.reshape(3, 1)))
+            left_foot_samples = np.hstack(
+                (left_foot_samples, left_xyztheta_pose.reshape(4, 1))
+            )
+            right_foot_samples = np.hstack(
+                (right_foot_samples, right_foot_samples[:, -1].reshape(4, 1))
+            )
         elif first_footstep == FootstepType.RIGHT:
-            samples = np.hstack((samples, right_xytheta_pose.reshape(3, 1)))
+            right_foot_samples = np.hstack(
+                (right_foot_samples, right_xyztheta_pose.reshape(4, 1))
+            )
+            left_foot_samples = np.hstack(
+                (left_foot_samples, left_foot_samples[:, -1].reshape(4, 1))
+            )
+        else:
+            raise NotImplementedError
+        zmp_samples = np.hstack((zmp_samples, zmp_samples[:, -1].reshape(2, 1)))
+
+        left_foot_breaks.append(left_foot_breaks[-1] + self.stance_phase_time_s)
+        right_foot_breaks.append(right_foot_breaks[-1] + self.stance_phase_time_s)
+        zmp_breaks.append(zmp_breaks[-1] + self.stance_phase_time_s)
+
+        left_foot_samples = np.hstack(
+            (left_foot_samples, left_foot_samples[:, -1].reshape(4, 1))
+        )
+        right_foot_samples = np.hstack(
+            (right_foot_samples, right_foot_samples[:, -1].reshape(4, 1))
+        )
+        if first_footstep == FootstepType.LEFT:
+            zmp_samples = np.hstack((zmp_samples, left_xytheta_pose[:2].reshape(2, 1)))
+        elif first_footstep == FootstepType.RIGHT:
+            zmp_samples = np.hstack((zmp_samples, right_xytheta_pose[:2].reshape(2, 1)))
         else:
             raise NotImplementedError
 
@@ -299,50 +395,117 @@ class NaiveZMPPlanner:
         next_footstep = first_footstep.invert()
         for footstep_index in footstep_indices:
 
-            (
-                next_left_xytheta_pose,
-                next_right_xytheta_pose,
-            ) = compute_xytheta_side_poses(
+            (left_xytheta_pose, right_xytheta_pose,) = compute_xytheta_side_poses(
                 xytheta_pose=xytheta_path[footstep_index],
                 half_distance_m=0.5 * self.distance_between_feet,
             )
+            left_xyztheta_pose = f_xyzt(left_xytheta_pose)
+            right_xyztheta_pose = f_xyzt(right_xytheta_pose)
 
             # Clamping theta to be within limits so that the feet orientation
             # doesn't change too much.
-            next_theta = xytheta_path[footstep_index, 2]
-            if (
-                normalize_angles(next_theta - samples[2, -1])
-                > self.max_orientation_delta
-            ):
-                next_theta = samples[2, -1] + np.clip(
-                    next_theta - samples[2, -1],
+            # For the previous theta, we can use either left or right foot samples.
+            theta = xytheta_path[footstep_index, 2]
+            prev_theta = left_foot_samples[3, -1]
+            if normalize_angles(theta - prev_theta) > self.max_orientation_delta:
+                theta = prev_theta + np.clip(
+                    theta - prev_theta,
                     -self.max_orientation_delta,
                     self.max_orientation_delta,
                 )
+            left_xyztheta_pose[3] = theta
+            right_xyztheta_pose[3] = theta
 
-            # Conservative.
-            breaks.append(breaks[-1] + self.swing_phase_time_s)
-            samples = np.hstack((samples, samples[:, -1].reshape(3, 1)))
-            breaks.append(breaks[-1] + self.stance_phase_time_s)
-            # Non conservative, more continuous
-            # breaks.append(breaks[-1] + swing_phase_time_s + stance_phase_time_s)
+            # Mid swing feet positions.
+            left_foot_breaks.append(
+                left_foot_breaks[-1] + 0.5 * self.swing_phase_time_s
+            )
+            right_foot_breaks.append(
+                right_foot_breaks[-1] + 0.5 * self.swing_phase_time_s
+            )
+            if next_footstep == FootstepType.LEFT:
+                # Lifted up pose at the mid point.
+                _foot_pose = 0.5 * (left_xyztheta_pose + left_foot_samples[:, -1])
+                _foot_pose[2] = self.foot_lift_height_m
+                left_foot_samples = np.hstack(
+                    (left_foot_samples, _foot_pose.reshape(4, 1))
+                )
+                right_foot_samples = np.hstack(
+                    (right_foot_samples, right_foot_samples[:, -1].reshape(4, 1))
+                )
+            elif next_footstep == FootstepType.RIGHT:
+                # Lifted up pose at the mid point.
+                _foot_pose = 0.5 * (right_xyztheta_pose + right_foot_samples[:, -1])
+                _foot_pose[2] = self.foot_lift_height_m
+                right_foot_samples = np.hstack(
+                    (right_foot_samples, _foot_pose.reshape(4, 1))
+                )
+                left_foot_samples = np.hstack(
+                    (left_foot_samples, left_foot_samples[:, -1].reshape(4, 1))
+                )
+            else:
+                raise NotImplementedError
+
+            left_foot_breaks.append(
+                left_foot_breaks[-1] + 0.5 * self.swing_phase_time_s
+            )
+            right_foot_breaks.append(
+                right_foot_breaks[-1] + 0.5 * self.swing_phase_time_s
+            )
+            zmp_breaks.append(zmp_breaks[-1] + self.swing_phase_time_s)
 
             if next_footstep == FootstepType.LEFT:
-                pose = np.copy(next_left_xytheta_pose)
-                pose[2] = next_theta
-                samples = np.hstack((samples, pose.reshape(3, 1)))
+                left_foot_samples = np.hstack(
+                    (left_foot_samples, left_xyztheta_pose.reshape(4, 1))
+                )
+                right_foot_samples = np.hstack(
+                    (right_foot_samples, right_foot_samples[:, -1].reshape(4, 1))
+                )
             elif next_footstep == FootstepType.RIGHT:
-                pose = np.copy(next_right_xytheta_pose)
-                pose[2] = next_theta
-                samples = np.hstack((samples, pose.reshape(3, 1)))
+                right_foot_samples = np.hstack(
+                    (right_foot_samples, right_xyztheta_pose.reshape(4, 1))
+                )
+                left_foot_samples = np.hstack(
+                    (left_foot_samples, left_foot_samples[:, -1].reshape(4, 1))
+                )
+            else:
+                raise NotImplementedError
+            zmp_samples = np.hstack((zmp_samples, zmp_samples[:, -1].reshape(2, 1)))
+
+            left_foot_breaks.append(left_foot_breaks[-1] + self.stance_phase_time_s)
+            right_foot_breaks.append(right_foot_breaks[-1] + self.stance_phase_time_s)
+            zmp_breaks.append(zmp_breaks[-1] + self.stance_phase_time_s)
+
+            left_foot_samples = np.hstack(
+                (left_foot_samples, left_foot_samples[:, -1].reshape(4, 1))
+            )
+            right_foot_samples = np.hstack(
+                (right_foot_samples, right_foot_samples[:, -1].reshape(4, 1))
+            )
+            if next_footstep == FootstepType.LEFT:
+                zmp_samples = np.hstack(
+                    (zmp_samples, left_xyztheta_pose[:2].reshape(2, 1))
+                )
+            elif next_footstep == FootstepType.RIGHT:
+                zmp_samples = np.hstack(
+                    (zmp_samples, right_xyztheta_pose[:2].reshape(2, 1))
+                )
             else:
                 raise NotImplementedError
 
             next_footstep = next_footstep.invert()
 
-        oriented_zmp_trajectory = PiecewisePolynomial.FirstOrderHold(
-            breaks=breaks,
-            samples=samples,
+        left_foot_trajectory = PiecewisePolynomial.FirstOrderHold(
+            breaks=left_foot_breaks,
+            samples=left_foot_samples,
+        )
+        right_foot_trajectory = PiecewisePolynomial.FirstOrderHold(
+            breaks=right_foot_breaks,
+            samples=right_foot_samples,
+        )
+        zmp_trajectory = PiecewisePolynomial.FirstOrderHold(
+            breaks=zmp_breaks,
+            samples=zmp_samples,
         )
 
         if debug:
@@ -350,7 +513,9 @@ class NaiveZMPPlanner:
             ax = fig.gca()
             _plot_zmp_trajectory_on_ax(
                 ax=ax,
-                oriented_zmp_trajectory=oriented_zmp_trajectory,
+                left_foot_trajectory=left_foot_trajectory,
+                right_foot_trajectory=right_foot_trajectory,
+                zmp_trajectory=zmp_trajectory,
                 xy_path=xy_path,
                 left_foot_polygon=self.left_foot_polygon,
                 right_foot_polygon=self.right_foot_polygon,
@@ -358,17 +523,17 @@ class NaiveZMPPlanner:
             )
             plt.show()
 
-        return oriented_zmp_trajectory
+        return left_foot_trajectory, right_foot_trajectory, zmp_trajectory
 
     def plan_com_trajectory(
         self,
         initial_com: XYZPoint,
-        oriented_zmp_trajectory: PiecewisePolynomial,
+        zmp_trajectory: PiecewisePolynomial,
         debug: bool = False,
     ) -> Tuple[PiecewisePolynomial, PiecewisePolynomial]:
 
         assert initial_com.size == 3
-        assert oriented_zmp_trajectory.start_time() == 0.0
+        assert zmp_trajectory.start_time() == 0.0
 
         def _compute_gains(
             A: NpArrayNNf64,
@@ -405,7 +570,7 @@ class NaiveZMPPlanner:
 
         com_z_m = initial_com[2]
         num_preview_points = int(self.preview_time_s / self.dt)
-        num_zmp_trajectory_points = int(oriented_zmp_trajectory.end_time() / self.dt)
+        num_zmp_trajectory_points = int(zmp_trajectory.end_time() / self.dt)
         # For the COM trajectory, we need 'num_preview_points' in the future, so we can't
         # compute it all the way to the end by this method.
         num_com_trajectory_points = num_zmp_trajectory_points - num_preview_points
@@ -433,8 +598,8 @@ class NaiveZMPPlanner:
         com_state_x = np.array([initial_com[0], 0.0, 0.0], dtype=np.float64)[:, None]
         com_state_y = np.array([initial_com[1], 0.0, 0.0], dtype=np.float64)[:, None]
 
-        unoriented_zmp_output_breaks = []
-        unoriented_zmp_output_samples = np.empty((2, 0), dtype=np.float64)
+        zmp_output_breaks = []
+        zmp_output_samples = np.empty((2, 0), dtype=np.float64)
         com_breaks = [0.0]
         com_samples = np.copy(initial_com).reshape(3, 1)
 
@@ -443,30 +608,26 @@ class NaiveZMPPlanner:
         for i in range(1, num_com_trajectory_points):
 
             t = i * self.dt
-            zmp_x, zmp_y, _ = oriented_zmp_trajectory.value(t=t)
+            zmp_x, zmp_y = zmp_trajectory.value(t=t)
 
             preview_times_list = [
                 _t * self.dt for _t in range(i + 1, i + 1 + num_preview_points)
             ]
-            zmp_preview_poses = oriented_zmp_trajectory.vector_values(
-                preview_times_list
-            )
+            zmp_preview_poses = zmp_trajectory.vector_values(preview_times_list)
 
-            unoriented_zmp_output_x = (C @ com_state_x).item()
-            unoriented_zmp_output_y = (C @ com_state_y).item()
+            zmp_output_x = (C @ com_state_x).item()
+            zmp_output_y = (C @ com_state_y).item()
 
-            unoriented_zmp_output_breaks.append(t)
-            unoriented_zmp_output_samples = np.hstack(
+            zmp_output_breaks.append(t)
+            zmp_output_samples = np.hstack(
                 (
-                    unoriented_zmp_output_samples,
-                    np.array(
-                        [unoriented_zmp_output_x, unoriented_zmp_output_y]
-                    ).reshape(2, 1),
+                    zmp_output_samples,
+                    np.array([zmp_output_x, zmp_output_y]).reshape(2, 1),
                 ),
             )
 
-            error_x = zmp_x - unoriented_zmp_output_x
-            error_y = zmp_y - unoriented_zmp_output_y
+            error_x = zmp_x - zmp_output_x
+            error_y = zmp_y - zmp_output_y
 
             u_x = (
                 -Gi * error_x - Gx @ com_state_x - Gd @ zmp_preview_poses[0, :]
@@ -492,9 +653,9 @@ class NaiveZMPPlanner:
                 ),
             )
 
-        unoriented_zmp_output_trajectory = PiecewisePolynomial.FirstOrderHold(
-            breaks=unoriented_zmp_output_breaks,
-            samples=unoriented_zmp_output_samples,
+        zmp_output_trajectory = PiecewisePolynomial.FirstOrderHold(
+            breaks=zmp_output_breaks,
+            samples=zmp_output_samples,
         )
         com_trajectory = PiecewisePolynomial.FirstOrderHold(
             breaks=com_breaks,
@@ -506,12 +667,12 @@ class NaiveZMPPlanner:
             ax = fig.gca()
             _plot_com_trajectory_on_ax(
                 ax=ax,
-                unoriented_zmp_output_trajectory=unoriented_zmp_output_trajectory,
+                zmp_output_trajectory=zmp_output_trajectory,
                 com_trajectory=com_trajectory,
             )
             plt.show()
 
-        return unoriented_zmp_output_trajectory, com_trajectory
+        return zmp_output_trajectory, com_trajectory
 
     def compute_full_zmp_result(
         self,
@@ -521,14 +682,18 @@ class NaiveZMPPlanner:
         debug: bool = False,
     ) -> ZMPPlannerResult:
 
-        oriented_zmp_trajectory = self.plan_zmp_trajectory(
+        (
+            left_foot_trajectory,
+            right_foot_trajectory,
+            zmp_trajectory,
+        ) = self.plan_zmp_trajectory(
             xy_path=xy_path,
             first_footstep=first_footstep,
             debug=False,
         )
-        unoriented_zmp_output_trajectory, com_trajectory = self.plan_com_trajectory(
+        zmp_output_trajectory, com_trajectory = self.plan_com_trajectory(
             initial_com=initial_com,
-            oriented_zmp_trajectory=oriented_zmp_trajectory,
+            zmp_trajectory=zmp_trajectory,
             debug=False,
         )
 
@@ -536,14 +701,16 @@ class NaiveZMPPlanner:
             fig, (ax, ax2, ax3) = plt.subplots(nrows=3, ncols=1)
             _plot_zmp_trajectory_on_ax(
                 ax=ax,
-                oriented_zmp_trajectory=oriented_zmp_trajectory,
+                left_foot_trajectory=left_foot_trajectory,
+                right_foot_trajectory=right_foot_trajectory,
+                zmp_trajectory=zmp_trajectory,
                 xy_path=xy_path,
                 left_foot_polygon=self.left_foot_polygon,
                 right_foot_polygon=self.right_foot_polygon,
             )
             _plot_com_trajectory_on_ax(
                 ax=ax,
-                unoriented_zmp_output_trajectory=unoriented_zmp_output_trajectory,
+                zmp_output_trajectory=zmp_output_trajectory,
                 com_trajectory=com_trajectory,
                 ax2=ax2,
                 ax3=ax3,
@@ -551,7 +718,9 @@ class NaiveZMPPlanner:
             plt.show()
 
         return ZMPPlannerResult(
-            oriented_zmp_trajectory=oriented_zmp_trajectory,
-            unoriented_zmp_output_trajectory=unoriented_zmp_output_trajectory,
+            left_foot_trajectory=left_foot_trajectory,
+            right_foot_trajectory=right_foot_trajectory,
+            zmp_trajectory=zmp_trajectory,
+            zmp_output_trajectory=zmp_output_trajectory,
             com_trajectory=com_trajectory,
         )

@@ -45,7 +45,48 @@ def test_invalid_zmp_planner_construction(
 
     with pytest.raises(AssertionError):
         NaiveZMPPlanner(
+            stride_length_m=-0.5,
+            foot_lift_height_m=0.2,
+            default_foot_height_m=0.0,
+            swing_phase_time_s=0.5,
+            stance_phase_time_s=0.5,
+            distance_between_feet=0.5,
+            max_orientation_delta=np.deg2rad(30.0),
+            left_foot_polygon=left_foot_polygon,
+            right_foot_polygon=right_foot_polygon,
+            preview_time_s=2.0,
+        )
+    with pytest.raises(AssertionError):
+        NaiveZMPPlanner(
             stride_length_m=0.5,
+            foot_lift_height_m=-0.2,
+            default_foot_height_m=0.0,
+            swing_phase_time_s=0.5,
+            stance_phase_time_s=0.5,
+            distance_between_feet=0.5,
+            max_orientation_delta=np.deg2rad(30.0),
+            left_foot_polygon=left_foot_polygon,
+            right_foot_polygon=right_foot_polygon,
+            preview_time_s=2.0,
+        )
+    with pytest.raises(AssertionError):
+        NaiveZMPPlanner(
+            stride_length_m=0.5,
+            foot_lift_height_m=0.2,
+            default_foot_height_m=0.0,
+            swing_phase_time_s=-0.5,
+            stance_phase_time_s=0.5,
+            distance_between_feet=0.5,
+            max_orientation_delta=np.deg2rad(30.0),
+            left_foot_polygon=left_foot_polygon,
+            right_foot_polygon=right_foot_polygon,
+            preview_time_s=2.0,
+        )
+    with pytest.raises(AssertionError):
+        NaiveZMPPlanner(
+            stride_length_m=0.5,
+            foot_lift_height_m=0.2,
+            default_foot_height_m=0.0,
             swing_phase_time_s=0.5,
             stance_phase_time_s=-0.5,
             distance_between_feet=0.5,
@@ -57,28 +98,8 @@ def test_invalid_zmp_planner_construction(
     with pytest.raises(AssertionError):
         NaiveZMPPlanner(
             stride_length_m=0.5,
-            swing_phase_time_s=-0.5,
-            stance_phase_time_s=0.5,
-            distance_between_feet=0.5,
-            max_orientation_delta=np.deg2rad(30.0),
-            left_foot_polygon=left_foot_polygon,
-            right_foot_polygon=right_foot_polygon,
-            preview_time_s=2.0,
-        )
-    with pytest.raises(AssertionError):
-        NaiveZMPPlanner(
-            stride_length_m=-0.5,
-            swing_phase_time_s=0.5,
-            stance_phase_time_s=0.5,
-            distance_between_feet=0.5,
-            max_orientation_delta=np.deg2rad(30.0),
-            left_foot_polygon=left_foot_polygon,
-            right_foot_polygon=right_foot_polygon,
-            preview_time_s=2.0,
-        )
-    with pytest.raises(AssertionError):
-        NaiveZMPPlanner(
-            stride_length_m=0.5,
+            foot_lift_height_m=0.2,
+            default_foot_height_m=0.0,
             swing_phase_time_s=0.5,
             stance_phase_time_s=0.5,
             distance_between_feet=-0.5,
@@ -90,6 +111,8 @@ def test_invalid_zmp_planner_construction(
     with pytest.raises(AssertionError):
         NaiveZMPPlanner(
             stride_length_m=0.5,
+            foot_lift_height_m=0.2,
+            default_foot_height_m=0.0,
             swing_phase_time_s=0.5,
             stance_phase_time_s=0.5,
             distance_between_feet=0.5,
@@ -101,6 +124,8 @@ def test_invalid_zmp_planner_construction(
     with pytest.raises(AssertionError):
         NaiveZMPPlanner(
             stride_length_m=0.5,
+            foot_lift_height_m=0.2,
+            default_foot_height_m=0.0,
             swing_phase_time_s=0.5,
             stance_phase_time_s=0.5,
             distance_between_feet=0.5,
@@ -113,6 +138,8 @@ def test_invalid_zmp_planner_construction(
     with pytest.raises(AssertionError):
         NaiveZMPPlanner(
             stride_length_m=0.5,
+            foot_lift_height_m=0.2,
+            default_foot_height_m=0.0,
             swing_phase_time_s=0.5,
             stance_phase_time_s=0.5,
             distance_between_feet=0.5,
@@ -127,11 +154,13 @@ def test_invalid_zmp_planner_construction(
 def test_naive_zmp_planner(
     left_foot_polygon: PolygonArray,
     right_foot_polygon: PolygonArray,
-    debug: bool = False,
+    debug: bool = True,
 ) -> None:
 
     nfp = NaiveZMPPlanner(
         stride_length_m=0.5,
+        foot_lift_height_m=0.1,
+        default_foot_height_m=0.0,
         swing_phase_time_s=0.5,
         stance_phase_time_s=0.1,
         distance_between_feet=0.5,
@@ -150,14 +179,14 @@ def test_naive_zmp_planner(
     straight_xy_path = np.vstack((straight_x_path, straight_y_path)).T
     zmp_result = nfp.compute_full_zmp_result(
         xy_path=straight_xy_path,
-        initial_com=np.hstack((straight_xy_path[0], 1.)),
+        initial_com=np.hstack((straight_xy_path[0], 1.0)),
         first_footstep=FootstepType.RIGHT,
         debug=debug,
     )
-    ozt = zmp_result.oriented_zmp_trajectory
+    zt = zmp_result.zmp_trajectory
     np.testing.assert_array_almost_equal(
-        ozt.value(ozt.end_time()).reshape(3),
-        np.array([9.95, -0.25, 0.0]),
+        zt.value(zt.end_time()).reshape(2),
+        np.array([9.95, -0.25]),
         decimal=6,
     )
 
@@ -166,16 +195,16 @@ def test_naive_zmp_planner(
     diagonal_y_path = np.arange(0.0, 10.0, 0.05)
     diagonal_xy_path = np.vstack((diagonal_x_path, diagonal_y_path)).T
     zmp_result = nfp.compute_full_zmp_result(
-       xy_path=diagonal_xy_path,
-       initial_com=np.hstack((diagonal_xy_path[0], 1.0)),
-       first_footstep=FootstepType.RIGHT,
-       debug=debug,
+        xy_path=diagonal_xy_path,
+        initial_com=np.hstack((diagonal_xy_path[0], 1.0)),
+        first_footstep=FootstepType.RIGHT,
+        debug=debug,
     )
-    ozt = zmp_result.oriented_zmp_trajectory
+    zt = zmp_result.zmp_trajectory
     np.testing.assert_array_almost_equal(
-       ozt.value(ozt.end_time()).reshape(3),
-       np.array([9.7732233, 10.1267767, 0.78539816]),
-       decimal=6,
+        zt.value(zt.end_time()).reshape(2),
+        np.array([9.7732233, 10.1267767]),
+        decimal=6,
     )
 
     # Path that turns left 90 degrees.
@@ -187,16 +216,16 @@ def test_naive_zmp_planner(
     turn_y_path = np.hstack((turn_y_path1, turn_y_path2))
     turn_xy_path = np.vstack((turn_x_path, turn_y_path)).T
     zmp_result = nfp.compute_full_zmp_result(
-       xy_path=turn_xy_path,
-       initial_com=np.hstack((turn_xy_path[0], 1.0)),
-       first_footstep=FootstepType.RIGHT,
-       debug=debug,
+        xy_path=turn_xy_path,
+        initial_com=np.hstack((turn_xy_path[0], 1.0)),
+        first_footstep=FootstepType.RIGHT,
+        debug=debug,
     )
-    ozt = zmp_result.oriented_zmp_trajectory
+    zt = zmp_result.zmp_trajectory
     np.testing.assert_array_almost_equal(
-       ozt.value(ozt.end_time()).reshape(3),
-       np.array([10.25, 9.95, 1.570796]),
-       decimal=6,
+        zt.value(zt.end_time()).reshape(2),
+        np.array([10.25, 9.95]),
+        decimal=6,
     )
 
 

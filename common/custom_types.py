@@ -25,6 +25,7 @@ NpVectorNf64 = Annotated[npt.NDArray[f64], Literal["N"]]
 NpVector1f64 = Annotated[npt.NDArray[f64], Literal["1"]]
 NpVector2f64 = Annotated[npt.NDArray[f64], Literal["2"]]
 NpVector3f64 = Annotated[npt.NDArray[f64], Literal["3"]]
+NpVector4f64 = Annotated[npt.NDArray[f64], Literal["4"]]
 NpArrayN2f64 = Annotated[npt.NDArray[f64], Literal["N,2"]]
 NpArrayN3f64 = Annotated[npt.NDArray[f64], Literal["N,3"]]
 NpArrayNNf64 = Annotated[npt.NDArray[f64], Literal["N,N"]]
@@ -47,5 +48,6 @@ AnglesVector = NpVectorNf64
 
 # Trajectories.
 XYThetaPose = NpVector3f64
+XYZThetaPose = NpVector4f64
 XYPath = NpArrayN2f64
 XYThetaPath = NpArrayN3f64
