@@ -155,6 +155,20 @@ def get_default_positions_for_legged_model_type(
     }[legged_model_type]
 
 
+def get_left_ankle_frame_name(legged_model_type: LeggedModelType) -> str:
+    if legged_model_type == LeggedModelType.H1:
+        return "left_ankle_link"
+    else:
+        raise NotImplementedError
+
+
+def get_right_ankle_frame_name(legged_model_type: LeggedModelType) -> str:
+    if legged_model_type == LeggedModelType.H1:
+        return "right_ankle_link"
+    else:
+        raise NotImplementedError
+
+
 def add_legged_model_to_plant_and_finalize(
     plant: MultibodyPlant,
     legged_model_type: LeggedModelType,

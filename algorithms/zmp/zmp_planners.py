@@ -32,19 +32,6 @@ from numeric.geometry.path_utils import (
 )
 
 
-class FootstepType(Enum):
-    LEFT = auto()
-    RIGHT = auto()
-
-    def invert(self) -> FootstepType:
-        if self == FootstepType.LEFT:
-            return FootstepType.RIGHT
-        elif self == FootstepType.RIGHT:
-            return FootstepType.LEFT
-        else:
-            raise NotImplementedError
-
-
 def _plot_zmp_trajectory_on_ax(
     ax: Axes,
     oriented_zmp_trajectory: PiecewisePolynomial,
@@ -190,8 +177,22 @@ def _plot_com_trajectory_on_ax(
     ax.legend(loc="upper right")
 
 
+class FootstepType(Enum):
+    LEFT = auto()
+    RIGHT = auto()
+
+    def invert(self) -> FootstepType:
+        if self == FootstepType.LEFT:
+            return FootstepType.RIGHT
+        elif self == FootstepType.RIGHT:
+            return FootstepType.LEFT
+        else:
+            raise NotImplementedError
+
+
 @attr.frozen
 class ZMPPlannerResult:
+    footstep_trajectory: PiecewisePolynomial
     oriented_zmp_trajectory: PiecewisePolynomial
     unoriented_zmp_output_trajectory: PiecewisePolynomial
     # TODO: Can do better than piecewise here.
@@ -208,6 +209,9 @@ class NaiveZMPPlanner:
     It then computes a COP/ZMP trajectory from the footstep poses.
     """
 
+    stride_length_m: float
+    swing_phase_time_s: float
+    stance_phase_time_s: float
     distance_between_feet: float = attr.ib(
         validator=AttrsValidators.positive_validator()
     )
@@ -223,9 +227,6 @@ class NaiveZMPPlanner:
     def plan_zmp_trajectory(
         self,
         xy_path: XYPath,
-        stride_length_m: float,
-        swing_phase_time_s: float,
-        stance_phase_time_s: float,
         first_footstep: FootstepType = FootstepType.RIGHT,
         debug: bool = False,
     ) -> PiecewisePolynomial:
@@ -241,7 +242,7 @@ class NaiveZMPPlanner:
         samples = np.copy(xytheta_path[0]).reshape(3, 1)
 
         # First we shift the COP to the non first step leg.
-        breaks.append(stance_phase_time_s)
+        breaks.append(self.stance_phase_time_s)
         left_xytheta_pose, right_xytheta_pose = compute_xytheta_side_poses(
             xytheta_pose=xytheta_path[0],
             half_distance_m=0.5 * self.distance_between_feet,
@@ -256,7 +257,7 @@ class NaiveZMPPlanner:
         # Taking the first half step.
         first_footstep_index = segment_path_index(
             xy_path=xy_path,
-            segment_length=0.5 * stride_length_m,
+            segment_length=0.5 * self.stride_length_m,
             start_index=0,
         )
 
@@ -265,9 +266,9 @@ class NaiveZMPPlanner:
             half_distance_m=0.5 * self.distance_between_feet,
         )
         # Conservative
-        breaks.append(breaks[-1] + swing_phase_time_s)
+        breaks.append(breaks[-1] + self.swing_phase_time_s)
         samples = np.hstack((samples, samples[:, -1].reshape(3, 1)))
-        breaks.append(breaks[-1] + stance_phase_time_s)
+        breaks.append(breaks[-1] + self.stance_phase_time_s)
         # Non conservative, more continuous
         # breaks.append(breaks[-1] + 2. * swing_phase_time_s + stance_phase_time_s)
 
@@ -280,7 +281,7 @@ class NaiveZMPPlanner:
 
         footstep_indices = segment_path_indices(
             xy_path=xy_path,
-            segment_length=stride_length_m,
+            segment_length=self.stride_length_m,
             start_index=first_footstep_index,
         )
 
@@ -309,9 +310,9 @@ class NaiveZMPPlanner:
                 )
 
             # Conservative.
-            breaks.append(breaks[-1] + swing_phase_time_s)
+            breaks.append(breaks[-1] + self.swing_phase_time_s)
             samples = np.hstack((samples, samples[:, -1].reshape(3, 1)))
-            breaks.append(breaks[-1] + stance_phase_time_s)
+            breaks.append(breaks[-1] + self.stance_phase_time_s)
             # Non conservative, more continuous
             # breaks.append(breaks[-1] + swing_phase_time_s + stance_phase_time_s)
 
