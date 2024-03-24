@@ -192,7 +192,6 @@ class FootstepType(Enum):
 
 @attr.frozen
 class ZMPPlannerResult:
-    footstep_trajectory: PiecewisePolynomial
     oriented_zmp_trajectory: PiecewisePolynomial
     unoriented_zmp_output_trajectory: PiecewisePolynomial
     # TODO: Can do better than piecewise here.
@@ -209,19 +208,31 @@ class NaiveZMPPlanner:
     It then computes a COP/ZMP trajectory from the footstep poses.
     """
 
-    stride_length_m: float
-    swing_phase_time_s: float
-    stance_phase_time_s: float
+    stride_length_m: float = attr.ib(
+        validator=AttrsValidators.positive_validator(),
+    )
+    swing_phase_time_s: float = attr.ib(
+        validator=AttrsValidators.positive_validator(),
+    )
+    stance_phase_time_s: float = attr.ib(
+        validator=AttrsValidators.positive_validator(),
+    )
     distance_between_feet: float = attr.ib(
-        validator=AttrsValidators.positive_validator()
+        validator=AttrsValidators.positive_validator(),
     )
     max_orientation_delta: float = attr.ib(
-        validator=AttrsValidators.positive_validator()
+        validator=AttrsValidators.positive_validator(),
     )
     left_foot_polygon: PolygonArray
     right_foot_polygon: PolygonArray
 
-    dt: float = attr.ib(default=0.001, validator=AttrsValidators.positive_validator())
+    preview_time_s: float = attr.ib(
+        validator=AttrsValidators.positive_validator(),
+    )
+    dt: float = attr.ib(
+        default=0.001,
+        validator=AttrsValidators.positive_validator(),
+    )
     g: float = attr.ib(init=False, default=ACC_DUE_TO_GRAVITY)
 
     def plan_zmp_trajectory(
@@ -353,7 +364,6 @@ class NaiveZMPPlanner:
         self,
         initial_com: XYZPoint,
         oriented_zmp_trajectory: PiecewisePolynomial,
-        preview_time_s: float = 2.0,
         debug: bool = False,
     ) -> Tuple[PiecewisePolynomial, PiecewisePolynomial]:
 
@@ -394,7 +404,7 @@ class NaiveZMPPlanner:
             return Gi, Gx, Gd
 
         com_z_m = initial_com[2]
-        num_preview_points = int(preview_time_s / self.dt)
+        num_preview_points = int(self.preview_time_s / self.dt)
         num_zmp_trajectory_points = int(oriented_zmp_trajectory.end_time() / self.dt)
         # For the COM trajectory, we need 'num_preview_points' in the future, so we can't
         # compute it all the way to the end by this method.
@@ -506,27 +516,19 @@ class NaiveZMPPlanner:
     def compute_full_zmp_result(
         self,
         xy_path: XYPath,
-        stride_length_m: float,
-        swing_phase_time_s: float,
-        stance_phase_time_s: float,
         initial_com: XYZPoint,
-        preview_time_s: float = 2.0,
         first_footstep: FootstepType = FootstepType.RIGHT,
         debug: bool = False,
     ) -> ZMPPlannerResult:
 
         oriented_zmp_trajectory = self.plan_zmp_trajectory(
             xy_path=xy_path,
-            stride_length_m=stride_length_m,
-            swing_phase_time_s=swing_phase_time_s,
-            stance_phase_time_s=stance_phase_time_s,
             first_footstep=first_footstep,
             debug=False,
         )
         unoriented_zmp_output_trajectory, com_trajectory = self.plan_com_trajectory(
             initial_com=initial_com,
             oriented_zmp_trajectory=oriented_zmp_trajectory,
-            preview_time_s=preview_time_s,
             debug=False,
         )
 

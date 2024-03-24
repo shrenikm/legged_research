@@ -7,7 +7,14 @@ from pydrake.multibody.plant import MultibodyPlant
 from pydrake.multibody.tree import ModelInstanceIndex
 
 from common.class_utils import StrEnum
-from common.custom_types import DirName, DirPath, FilePath, PositionsVector
+from common.custom_types import (
+    DirName,
+    DirPath,
+    FilePath,
+    PolygonArray,
+    PositionsVector,
+)
+from numeric.geometry.shape_utils import rectangle_polygon_array
 
 OBJECT_MODELS_DIRNAME = "object_models"
 ROBOT_MODELS_DIRNAME = "robot_models"
@@ -165,8 +172,29 @@ def get_left_ankle_frame_name(legged_model_type: LeggedModelType) -> str:
 def get_right_ankle_frame_name(legged_model_type: LeggedModelType) -> str:
     if legged_model_type == LeggedModelType.H1:
         return "right_ankle_link"
-    else:
-        raise NotImplementedError
+    raise NotImplementedError
+
+
+def get_left_footprint_polygon(
+    legged_model_type: LeggedModelType,
+) -> PolygonArray:
+    if legged_model_type == LeggedModelType.H1:
+        return rectangle_polygon_array(
+            size_x=0.3,
+            size_y=0.015,
+        )
+    raise NotImplementedError
+
+def get_right_footprint_polygon(
+    legged_model_type: LeggedModelType,
+) -> PolygonArray:
+    if legged_model_type == LeggedModelType.H1:
+        return rectangle_polygon_array(
+            size_x=0.3,
+            size_y=0.015,
+        )
+    raise NotImplementedError
+
 
 
 def add_legged_model_to_plant_and_finalize(
