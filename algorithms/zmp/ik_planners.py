@@ -60,6 +60,7 @@ class ZMPIKPlanner:
     ) -> NpArrayMNf64:
         assert end_time > start_time
         nk = int((end_time - start_time) / self.sample_time_s)
+        print(nk)
 
         prog = MathematicalProgram()
         q_vars_matrix = prog.NewContinuousVariables(
@@ -77,6 +78,9 @@ class ZMPIKPlanner:
             left_foot_xyz = left_foot_xyztheta[:3]
             right_foot_xyz = right_foot_xyztheta[:3]
 
+            p2p_distance_ub = 0.02
+            a2a_ub = 0.01
+
             # TODO: Need to incorporate theta
             c1 = PointToPointDistanceConstraint(
                 plant=self.plant,
@@ -85,7 +89,7 @@ class ZMPIKPlanner:
                 frame2=self.plant.world_frame(),
                 p_B2P2=left_foot_xyz + self._alpha_pos,
                 distance_lower=0.0,
-                distance_upper=0.01,
+                distance_upper=p2p_distance_ub,
                 plant_context=self.plant_context,
             )
             c2 = PointToPointDistanceConstraint(
@@ -95,7 +99,7 @@ class ZMPIKPlanner:
                 frame2=self.plant.world_frame(),
                 p_B2P2=left_foot_xyz - self._alpha_pos,
                 distance_lower=0.0,
-                distance_upper=0.01,
+                distance_upper=p2p_distance_ub,
                 plant_context=self.plant_context,
             )
             c3 = PointToPointDistanceConstraint(
@@ -105,7 +109,7 @@ class ZMPIKPlanner:
                 frame2=self.plant.world_frame(),
                 p_B2P2=right_foot_xyz + self._alpha_pos,
                 distance_lower=0.0,
-                distance_upper=0.01,
+                distance_upper=p2p_distance_ub,
                 plant_context=self.plant_context,
             )
             c4 = PointToPointDistanceConstraint(
@@ -115,7 +119,7 @@ class ZMPIKPlanner:
                 frame2=self.plant.world_frame(),
                 p_B2P2=right_foot_xyz - self._alpha_pos,
                 distance_lower=0.0,
-                distance_upper=0.01,
+                distance_upper=p2p_distance_ub,
                 plant_context=self.plant_context,
             )
             c5 = AngleBetweenVectorsConstraint(
@@ -126,7 +130,7 @@ class ZMPIKPlanner:
                 frameB=self.plant.world_frame(),
                 b_B=np.array([0.0, 0.0, 1.0]),
                 angle_lower=0.0,
-                angle_upper=0.01,
+                angle_upper=a2a_ub,
                 plant_context=self.plant_context,
             )
             c6 = ComPositionConstraint(
@@ -161,10 +165,12 @@ class ZMPIKPlanner:
 
         for j in range(nk):
             prog.SetInitialGuess(q_vars_matrix[0:4, j], np.array([1.0, 0.0, 0.0, 0.0]))
+            prog.SetInitialGuess(q_vars_matrix[4:, j], initial_q[4:])
 
         result = Solve(prog=prog)
         print("Success:", result.is_success())
         print("Solution result:", result.get_solution_result())
+        print(result.GetInfeasibleConstraintNames(prog))
 
         return result.GetSolution(q_vars_matrix)
 
@@ -176,9 +182,9 @@ class ZMPIKPlanner:
         zt = zmp_result.zmp_trajectory
 
         knot_times = zt.get_segment_times()
-        #current_walk_phase = WalkPhase.STANCE
+        # current_walk_phase = WalkPhase.STANCE
 
-        knot_times = knot_times[0:3]
+        knot_times = knot_times[0:5]
 
         initial_q = self.plant.GetDefaultPositions()
 

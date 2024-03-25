@@ -99,11 +99,11 @@ def _solve_walking_step(
         legged_model_type=legged_model_type,
     )
     nzp = NaiveZMPPlanner(
-        stride_length_m=0.3,
+        stride_length_m=0.2,
         foot_lift_height_m=0.05,
         default_foot_height_m=default_foot_height_m,
         swing_phase_time_s=1.0,
-        stance_phase_time_s=0.2,
+        stance_phase_time_s=0.5,
         distance_between_feet=distance_between_feet,
         max_orientation_delta=np.deg2rad(30.0),
         left_foot_polygon=left_foot_polygon,
@@ -125,7 +125,7 @@ def _solve_walking_step(
         legged_model_type=legged_model_type,
         plant=ik_plant,
         plant_context=ik_plant_context,
-        sample_time_s=0.05,
+        sample_time_s=0.1,
         alpha=0.1,
     )
     return ikzp.compute_positions(
