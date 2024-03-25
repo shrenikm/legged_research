@@ -78,7 +78,7 @@ class ZMPIKPlanner:
             left_foot_xyz = left_foot_xyztheta[:3]
             right_foot_xyz = right_foot_xyztheta[:3]
 
-            p2p_distance_ub = 0.02
+            p2p_distance_ub = 0.01
             a2a_ub = 0.01
 
             # TODO: Need to incorporate theta
@@ -164,8 +164,9 @@ class ZMPIKPlanner:
                 )
 
         for j in range(nk):
-            prog.SetInitialGuess(q_vars_matrix[0:4, j], np.array([1.0, 0.0, 0.0, 0.0]))
-            prog.SetInitialGuess(q_vars_matrix[4:, j], initial_q[4:])
+            #prog.SetInitialGuess(q_vars_matrix[0:4, j], np.array([1.0, 0.0, 0.0, 0.0]))
+            #prog.SetInitialGuess(q_vars_matrix[4:, j], initial_q[4:])
+            prog.SetInitialGuess(q_vars_matrix[:, j], initial_q)
 
         result = Solve(prog=prog)
         print("Success:", result.is_success())
@@ -184,7 +185,7 @@ class ZMPIKPlanner:
         knot_times = zt.get_segment_times()
         # current_walk_phase = WalkPhase.STANCE
 
-        knot_times = knot_times[0:5]
+        knot_times = knot_times[:-2]
 
         initial_q = self.plant.GetDefaultPositions()
 

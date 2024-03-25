@@ -111,14 +111,14 @@ def _solve_walking_step(
         preview_time_s=2.0,
         dt=1e-2,
     )
-    path_length = 2.0
+    path_length = 1.5
     x_path = np.arange(x_start, x_start + path_length, step=0.05)
     xy_path = np.vstack((x_path, np.zeros_like(x_path))).T
     zmp_result = nzp.compute_full_zmp_result(
         xy_path=xy_path,
         initial_com=initial_com,
         first_footstep=FootstepType.RIGHT,
-        #debug=True,
+        debug=True,
     )
 
     ikzp = ZMPIKPlanner(
