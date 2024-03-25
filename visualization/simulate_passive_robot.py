@@ -1,21 +1,12 @@
 import numpy as np
-from pydrake.all import AddMultibodyPlantSceneGraph, DiagramBuilder, StartMeshcat
-from pydrake.multibody.all import AddUnitQuaternionConstraintOnPlant
-from pydrake.multibody.inverse_kinematics import (
-    ComPositionConstraint,
-    InverseKinematics,
-    UnitQuaternionConstraint,
-)
+from pydrake.all import DiagramBuilder, StartMeshcat
 from pydrake.multibody.plant import (
     AddMultibodyPlant,
     ContactModel,
     MultibodyPlant,
     MultibodyPlantConfig,
 )
-from pydrake.solvers import MathematicalProgram, Solve
-from pydrake.symbolic import Expression
 from pydrake.systems.analysis import Simulator
-from pydrake.systems.framework import Context
 from pydrake.visualization import AddDefaultVisualization
 
 from common.drake_utils import auto_meshcat_visualization
@@ -44,7 +35,6 @@ def simulate_passive_robot(
         plant=plant,
         legged_model_type=legged_model_type,
     )
-    plant.GetBodyByName("left_ankle_link")
 
     AddDefaultVisualization(builder=builder, meshcat=meshcat)
     diagram = builder.Build()

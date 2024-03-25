@@ -1,40 +1,15 @@
-import numpy as np
-from pydrake.all import AddMultibodyPlantSceneGraph, DiagramBuilder, StartMeshcat
+from pydrake.all import DiagramBuilder, StartMeshcat
 from pydrake.geometry import MeshcatVisualizer, SceneGraph
-from pydrake.multibody.all import AddUnitQuaternionConstraintOnPlant
-from pydrake.multibody.inverse_kinematics import (
-    AngleBetweenVectorsConstraint,
-    ComPositionConstraint,
-    InverseKinematics,
-    PointToPointDistanceConstraint,
-    UnitQuaternionConstraint,
-)
-from pydrake.multibody.plant import (
-    AddMultibodyPlant,
-    ContactModel,
-    MultibodyPlant,
-    MultibodyPlantConfig,
-)
-from pydrake.planning import KinematicTrajectoryOptimization
-from pydrake.solvers import MathematicalProgram, Solve
-from pydrake.symbolic import Expression
+from pydrake.multibody.plant import MultibodyPlant
 from pydrake.systems.analysis import Simulator
-from pydrake.systems.framework import Context, LeafSystem
+from pydrake.systems.framework import LeafSystem
 from pydrake.systems.rendering import MultibodyPositionToGeometryPose
-from pydrake.visualization import AddDefaultVisualization
+from pydrake.trajectories import PiecewisePolynomial
 
-from algorithms.zmp.ik_planners import ZMPIKPlanner
-from algorithms.zmp.zmp_planners import FootstepType, NaiveZMPPlanner
+from algorithms.zmp.ik_planners import solve_straight_line_walking
 from common.custom_types import NpArrayMNf64
 from common.drake_utils import auto_meshcat_visualization
-from common.model_utils import (
-    LeggedModelType,
-    add_legged_model_to_plant_and_finalize,
-    get_left_foot_frame_name,
-    get_left_foot_polygon,
-    get_right_foot_frame_name,
-    get_right_foot_polygon,
-)
+from common.model_utils import LeggedModelType, add_legged_model_to_plant_and_finalize
 
 
 # TODO: Move out.
@@ -64,75 +39,6 @@ class TimeSpacedPositions(LeafSystem):
         output.SetFromVector(self.positions[:, self._current_k])
 
 
-def _solve_walking_step(
-    legged_model_type: LeggedModelType,
-) -> NpArrayMNf64:
-    ik_plant = MultibodyPlant(0.001)
-    add_legged_model_to_plant_and_finalize(
-        plant=ik_plant,
-        legged_model_type=legged_model_type,
-    )
-    ik_plant_context = ik_plant.CreateDefaultContext()
-    initial_com = ik_plant.CalcCenterOfMassPositionInWorld(ik_plant_context)
-    print("com:", initial_com)
-
-    lf_name = get_left_foot_frame_name(legged_model_type=legged_model_type)
-    rf_name = get_right_foot_frame_name(legged_model_type=legged_model_type)
-
-    left_foot_position = ik_plant.EvalBodyPoseInWorld(
-        ik_plant_context,
-        ik_plant.GetBodyByName(name=lf_name),
-    ).translation()
-    right_foot_position = ik_plant.EvalBodyPoseInWorld(
-        ik_plant_context,
-        ik_plant.GetBodyByName(name=rf_name),
-    ).translation()
-
-    default_foot_height_m = left_foot_position[2]
-    distance_between_feet = np.abs(left_foot_position[1] - right_foot_position[1])
-    x_start = left_foot_position[0]
-
-    left_foot_polygon = get_left_foot_polygon(
-        legged_model_type=legged_model_type,
-    )
-    right_foot_polygon = get_right_foot_polygon(
-        legged_model_type=legged_model_type,
-    )
-    nzp = NaiveZMPPlanner(
-        stride_length_m=0.2,
-        foot_lift_height_m=0.05,
-        default_foot_height_m=default_foot_height_m,
-        swing_phase_time_s=1.,
-        stance_phase_time_s=0.5,
-        distance_between_feet=distance_between_feet,
-        max_orientation_delta=np.deg2rad(30.0),
-        left_foot_polygon=left_foot_polygon,
-        right_foot_polygon=right_foot_polygon,
-        preview_time_s=2.0,
-        dt=1e-2,
-    )
-    path_length = 1.5
-    x_path = np.arange(x_start, x_start + path_length, step=0.05)
-    xy_path = np.vstack((x_path, np.zeros_like(x_path))).T
-    zmp_result = nzp.compute_full_zmp_result(
-        xy_path=xy_path,
-        initial_com=initial_com,
-        first_footstep=FootstepType.RIGHT,
-        #debug=True,
-    )
-
-    ikzp = ZMPIKPlanner(
-        legged_model_type=legged_model_type,
-        plant=ik_plant,
-        plant_context=ik_plant_context,
-        sample_time_s=0.1,
-        alpha=0.1,
-    )
-    return ikzp.compute_positions(
-        zmp_result=zmp_result,
-    )
-
-
 def simulate_passive_robot(
     legged_model_type: LeggedModelType,
 ) -> None:
@@ -140,8 +46,9 @@ def simulate_passive_robot(
     meshcat.DeleteAddedControls()
     builder = DiagramBuilder()
 
+    plant_time_step = 0.001
     plant: MultibodyPlant
-    plant = MultibodyPlant(time_step=0.001)
+    plant = MultibodyPlant(time_step=plant_time_step)
     scene_graph = builder.AddSystem(SceneGraph())
     plant.RegisterAsSourceForSceneGraph(scene_graph=scene_graph)
 
@@ -150,12 +57,19 @@ def simulate_passive_robot(
         legged_model_type=legged_model_type,
     )
 
-    positions = _solve_walking_step(
+    positions_traj: PiecewisePolynomial = solve_straight_line_walking(
         legged_model_type=legged_model_type,
+        plant_time_step=plant_time_step,
+        path_length=1.5,
+        ik_sample_time=0.1,
     )
-    print(positions.shape)
+    positions = positions_traj.vector_values(
+        positions_traj.get_segment_times(),
+    )
 
-    geometry_pose = builder.AddSystem(MultibodyPositionToGeometryPose(plant=plant))
+    geometry_pose = builder.AddSystem(
+        MultibodyPositionToGeometryPose(plant=plant),
+    )
 
     wait_time = 0.5
     time_spaced_positions = builder.AddSystem(
@@ -181,15 +95,8 @@ def simulate_passive_robot(
         meshcat=meshcat,
     )
 
-    # AddDefaultVisualization(builder=builder, meshcat=meshcat)
     diagram = builder.Build()
-
     simulator = Simulator(system=diagram)
-    # plant.get_actuation_input_port(model_instance=legged_model).FixValue(
-    #    context=plant.GetMyContextFromRoot(root_context=simulator.get_context()),
-    #    value=np.zeros(plant.num_actuators(), dtype=np.float64),
-    # )
-
     sim_time = wait_time * positions.shape[1]
     with auto_meshcat_visualization(meshcat=meshcat, record=True):
         simulator.AdvanceTo(
