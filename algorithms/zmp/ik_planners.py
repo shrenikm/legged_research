@@ -4,6 +4,7 @@ from pydrake.multibody.inverse_kinematics import (
     AngleBetweenVectorsConstraint,
     ComPositionConstraint,
     PointToPointDistanceConstraint,
+    UnitQuaternionConstraint,
 )
 from pydrake.multibody.plant import MultibodyPlant
 from pydrake.solvers import MathematicalProgram, Solve
@@ -139,6 +140,7 @@ class ZMPIKPlanner:
                 expressed_frame=self.plant.world_frame(),
                 plant_context=self.plant_context,
             )
+            c7 = UnitQuaternionConstraint()
 
             prog.AddConstraint(c1, vars=q_vars)
             prog.AddConstraint(c2, vars=q_vars)
@@ -147,6 +149,8 @@ class ZMPIKPlanner:
             prog.AddConstraint(c5, vars=q_vars)
             if j > 0:
                 prog.AddConstraint(c6, vars=np.hstack((q_vars, com_vars)))
+            # TODO: Maybe don't need quaternion constraint.
+            prog.AddConstraint(c7, vars=q_vars[:4])
 
             # Fix everything other than the leg joints.
             for i in range(17, self._nq):
