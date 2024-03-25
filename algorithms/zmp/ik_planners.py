@@ -164,8 +164,6 @@ class ZMPIKPlanner:
                 )
 
         for j in range(nk):
-            #prog.SetInitialGuess(q_vars_matrix[0:4, j], np.array([1.0, 0.0, 0.0, 0.0]))
-            #prog.SetInitialGuess(q_vars_matrix[4:, j], initial_q[4:])
             prog.SetInitialGuess(q_vars_matrix[:, j], initial_q)
 
         result = Solve(prog=prog)
@@ -183,8 +181,9 @@ class ZMPIKPlanner:
         zt = zmp_result.zmp_trajectory
 
         knot_times = zt.get_segment_times()
-        # current_walk_phase = WalkPhase.STANCE
 
+        # Ignoring the last few know points where we won't have the com trajectory due to
+        # preview control
         knot_times = knot_times[:-2]
 
         initial_q = self.plant.GetDefaultPositions()

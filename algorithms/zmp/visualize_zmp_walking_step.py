@@ -102,7 +102,7 @@ def _solve_walking_step(
         stride_length_m=0.2,
         foot_lift_height_m=0.05,
         default_foot_height_m=default_foot_height_m,
-        swing_phase_time_s=1.0,
+        swing_phase_time_s=1.,
         stance_phase_time_s=0.5,
         distance_between_feet=distance_between_feet,
         max_orientation_delta=np.deg2rad(30.0),
@@ -118,7 +118,7 @@ def _solve_walking_step(
         xy_path=xy_path,
         initial_com=initial_com,
         first_footstep=FootstepType.RIGHT,
-        debug=True,
+        #debug=True,
     )
 
     ikzp = ZMPIKPlanner(
