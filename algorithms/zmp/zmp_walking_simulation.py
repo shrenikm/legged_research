@@ -76,7 +76,7 @@ def simulate_zmp_walking(
         Multiplexer(input_sizes=[19, 19]),
     )
     # TODO: Use state projection in PID instead of demuxing.
-    kp = 20.0
+    kp = 50.0
     ki = 60.0
     kd = 0.0
     pid: PidController = builder.AddSystem(
@@ -124,7 +124,6 @@ def simulate_zmp_walking(
     diagram = builder.Build()
     simulator = Simulator(system=diagram)
 
-    print(q_traj.end_time())
     with auto_meshcat_visualization(meshcat=meshcat, record=True):
         simulator.AdvanceTo(
             boundary_time=q_traj.end_time(),

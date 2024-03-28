@@ -191,7 +191,8 @@ class ZMPIKPlanner:
 
         # Ignoring the last few know points where we won't have the com trajectory due to
         # preview control
-        knot_times = knot_times[:-2]
+        #knot_times = knot_times[:-2]
+        knot_times = knot_times[:2]
 
         initial_q = self.plant.GetDefaultPositions()
 

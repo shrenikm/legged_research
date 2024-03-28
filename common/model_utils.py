@@ -231,6 +231,7 @@ def add_legged_model_to_plant_and_finalize(
     )
 
     # We assume that the plane model already has itself welded to the world frame in the description file.
+    plant.set_gravity_enabled(legged_model, False)
     plant.Finalize()
 
     plant.SetDefaultPositions(
