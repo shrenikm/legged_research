@@ -147,7 +147,7 @@ def get_default_positions_for_legged_model_type(
     # Setting the unit quaternion of the floating base.
     h1_default_positions[0] = 1.0
     # Set z height so that the robot stands on the ground.
-    h1_default_positions[6] = 0.98
+    h1_default_positions[6] = 0.99
 
     # Bend the hip pitch, knees and ankle of both legs.
     h1_default_positions[9] = -0.4
@@ -201,6 +201,7 @@ def add_legged_model_to_plant_and_finalize(
     plant: MultibodyPlant,
     legged_model_type: LeggedModelType,
     parser: Optional[Parser] = None,
+    disable_gravity: bool = False,
 ) -> ModelInstanceIndex:
     """
     Adds the model specified by the model type to the plant using the parser.
@@ -231,7 +232,8 @@ def add_legged_model_to_plant_and_finalize(
     )
 
     # We assume that the plane model already has itself welded to the world frame in the description file.
-    plant.set_gravity_enabled(legged_model, False)
+    if disable_gravity:
+        plant.set_gravity_enabled(legged_model, False)
     plant.Finalize()
 
     plant.SetDefaultPositions(
