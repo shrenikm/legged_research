@@ -192,7 +192,7 @@ class ZMPIKPlanner:
         # Ignoring the last few know points where we won't have the com trajectory due to
         # preview control
         #knot_times = knot_times[:-2]
-        knot_times = knot_times[:2]
+        knot_times = knot_times[:4]
 
         initial_q = self.plant.GetDefaultPositions()
 
@@ -253,10 +253,10 @@ def solve_straight_line_walking(
         legged_model_type=legged_model_type,
     )
     nzp = NaiveZMPPlanner(
-        stride_length_m=0.2,
+        stride_length_m=0.5,
         foot_lift_height_m=0.05,
         default_foot_height_m=default_foot_height_m,
-        swing_phase_time_s=1.0,
+        swing_phase_time_s=0.5,
         stance_phase_time_s=0.5,
         distance_between_feet=distance_between_feet,
         max_orientation_delta=np.deg2rad(30.0),

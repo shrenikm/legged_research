@@ -39,7 +39,7 @@ class TimeSpacedPositions(LeafSystem):
         output.SetFromVector(self.positions[:, self._current_k])
 
 
-def simulate_passive_robot(
+def visualize_zmp_walking_step(
     legged_model_type: LeggedModelType,
 ) -> None:
     meshcat = StartMeshcat()
@@ -108,6 +108,6 @@ def simulate_passive_robot(
 if __name__ == "__main__":
 
     legged_model_type = LeggedModelType.H1
-    simulate_passive_robot(
+    visualize_zmp_walking_step(
         legged_model_type=legged_model_type,
     )

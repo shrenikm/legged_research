@@ -147,7 +147,7 @@ def get_default_positions_for_legged_model_type(
     # Setting the unit quaternion of the floating base.
     h1_default_positions[0] = 1.0
     # Set z height so that the robot stands on the ground.
-    h1_default_positions[6] = 0.99
+    h1_default_positions[6] = 0.98
 
     # Bend the hip pitch, knees and ankle of both legs.
     h1_default_positions[9] = -0.4
