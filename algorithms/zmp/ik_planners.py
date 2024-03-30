@@ -30,6 +30,7 @@ class ZMPIKPlanner:
     legged_model_type: LeggedModelType
     plant: MultibodyPlant
     plant_context: Context
+    q_cost: float
     sample_time_s: float
     alpha: float
 
@@ -167,7 +168,7 @@ class ZMPIKPlanner:
         for j in range(nk - 1):
             for i in range(7, 17):
                 prog.AddCost(
-                    1.0 * (q_vars_matrix[i, j + 1] - q_vars_matrix[i, j]) ** 2.0
+                    self.q_cost * (q_vars_matrix[i, j + 1] - q_vars_matrix[i, j]) ** 2.0
                 )
 
         for j in range(nk):
@@ -191,7 +192,7 @@ class ZMPIKPlanner:
 
         # Ignoring the last few know points where we won't have the com trajectory due to
         # preview control
-        #knot_times = knot_times[:-2]
+        # knot_times = knot_times[:-2]
         knot_times = knot_times[:4]
 
         initial_q = self.plant.GetDefaultPositions()
@@ -253,7 +254,7 @@ def solve_straight_line_walking(
         legged_model_type=legged_model_type,
     )
     nzp = NaiveZMPPlanner(
-        stride_length_m=0.5,
+        stride_length_m=0.3,
         foot_lift_height_m=0.05,
         default_foot_height_m=default_foot_height_m,
         swing_phase_time_s=0.5,
@@ -278,6 +279,7 @@ def solve_straight_line_walking(
         legged_model_type=legged_model_type,
         plant=ik_plant,
         plant_context=ik_plant_context,
+        q_cost=1000.0,
         sample_time_s=ik_sample_time,
         alpha=0.1,
     )

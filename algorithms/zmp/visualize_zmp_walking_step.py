@@ -61,7 +61,7 @@ def visualize_zmp_walking_step(
         legged_model_type=legged_model_type,
         plant_time_step=plant_time_step,
         path_length=1.5,
-        ik_sample_time=0.1,
+        ik_sample_time=0.05,
     )
     positions = positions_traj.vector_values(
         positions_traj.get_segment_times(),

@@ -114,6 +114,13 @@ def simulate_zmp_walking(
     kp = np.full(19, kp)
     ki = np.full(19, ki)
     kd = np.full(19, kd)
+    # Ankle
+    kp[4] = 500.0
+    kp[9] = 500.0
+    ki[4] = 500.0
+    ki[9] = 500.0
+    kd[4] = 0.0
+    kd[9] = 0.0
 
     pid: PidController = builder.AddSystem(
         PidController(

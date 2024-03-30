@@ -245,7 +245,7 @@ def simulate_zmp_walking(
 
     with auto_meshcat_visualization(meshcat=meshcat, record=True):
         simulator.AdvanceTo(
-            boundary_time=5.0,
+            boundary_time=10.0,
             interruptible=True,
         )
 
