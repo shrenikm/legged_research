@@ -381,6 +381,15 @@ class NaiveZMPPlanner:
             right_foot_samples = np.hstack(
                 (right_foot_samples, right_foot_samples[:, -1].reshape(4, 1))
             )
+            zmp_samples = np.hstack(
+                (
+                    zmp_samples,
+                    (
+                        0.5 * left_xyztheta_pose[:2].reshape(2, 1)
+                        + 0.5 * right_foot_samples[:2, -1].reshape(2, 1)
+                    ),
+                )
+            )
         elif first_footstep == FootstepType.RIGHT:
             right_foot_samples = np.hstack(
                 (right_foot_samples, right_xyztheta_pose.reshape(4, 1))
@@ -388,9 +397,17 @@ class NaiveZMPPlanner:
             left_foot_samples = np.hstack(
                 (left_foot_samples, left_foot_samples[:, -1].reshape(4, 1))
             )
+            zmp_samples = np.hstack(
+                (
+                    zmp_samples,
+                    (
+                        0.5 * right_xyztheta_pose[:2].reshape(2, 1)
+                        + 0.5 * left_foot_samples[:2, -1].reshape(2, 1)
+                    ),
+                )
+            )
         else:
             raise NotImplementedError
-        zmp_samples = np.hstack((zmp_samples, zmp_samples[:, -1].reshape(2, 1)))
 
         left_foot_breaks.append(left_foot_breaks[-1] + self.stance_phase_time_s)
         right_foot_breaks.append(right_foot_breaks[-1] + self.stance_phase_time_s)
@@ -484,6 +501,15 @@ class NaiveZMPPlanner:
                 right_foot_samples = np.hstack(
                     (right_foot_samples, right_foot_samples[:, -1].reshape(4, 1))
                 )
+                zmp_samples = np.hstack(
+                    (
+                        zmp_samples,
+                        (
+                            0.5 * left_xyztheta_pose[:2].reshape(2, 1)
+                            + 0.5 * right_foot_samples[:2, -1].reshape(2, 1)
+                        ),
+                    )
+                )
             elif next_footstep == FootstepType.RIGHT:
                 right_foot_samples = np.hstack(
                     (right_foot_samples, right_xyztheta_pose.reshape(4, 1))
@@ -491,9 +517,17 @@ class NaiveZMPPlanner:
                 left_foot_samples = np.hstack(
                     (left_foot_samples, left_foot_samples[:, -1].reshape(4, 1))
                 )
+                zmp_samples = np.hstack(
+                    (
+                        zmp_samples,
+                        (
+                            0.5 * right_xyztheta_pose[:2].reshape(2, 1)
+                            + 0.5 * left_foot_samples[:2, -1].reshape(2, 1)
+                        ),
+                    )
+                )
             else:
                 raise NotImplementedError
-            zmp_samples = np.hstack((zmp_samples, zmp_samples[:, -1].reshape(2, 1)))
 
             left_foot_breaks.append(left_foot_breaks[-1] + self.stance_phase_time_s)
             right_foot_breaks.append(right_foot_breaks[-1] + self.stance_phase_time_s)

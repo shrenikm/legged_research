@@ -80,7 +80,7 @@ def simulate_zmp_walking(
     AddDefaultVisualization(builder=builder, meshcat=meshcat)
 
     path_length = 1.5
-    ik_sample_time = 0.05
+    ik_sample_time = 0.2
     q_traj = solve_straight_line_walking(
         legged_model_type=legged_model_type,
         plant_time_step=config.time_step,
@@ -119,8 +119,8 @@ def simulate_zmp_walking(
     kp[9] = 500.0
     ki[4] = 500.0
     ki[9] = 500.0
-    kd[4] = 0.0
-    kd[9] = 0.0
+    kd[4] = 1.0
+    kd[9] = 1.0
 
     pid: PidController = builder.AddSystem(
         PidController(
