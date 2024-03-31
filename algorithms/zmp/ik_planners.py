@@ -255,11 +255,11 @@ def solve_straight_line_walking(
         legged_model_type=legged_model_type,
     )
     nzp = NaiveZMPPlanner(
-        stride_length_m=0.4,
+        stride_length_m=0.5,
         foot_lift_height_m=0.1,
         default_foot_height_m=default_foot_height_m,
-        swing_phase_time_s=1.,
-        stance_phase_time_s=1.,
+        swing_phase_time_s=0.5,
+        stance_phase_time_s=0.5,
         distance_between_feet=distance_between_feet,
         max_orientation_delta=np.deg2rad(30.0),
         left_foot_polygon=left_foot_polygon,

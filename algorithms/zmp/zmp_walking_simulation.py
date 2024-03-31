@@ -80,7 +80,7 @@ def simulate_zmp_walking(
     AddDefaultVisualization(builder=builder, meshcat=meshcat)
 
     path_length = 1.5
-    ik_sample_time = 0.2
+    ik_sample_time = 0.05
     q_traj = solve_straight_line_walking(
         legged_model_type=legged_model_type,
         plant_time_step=config.time_step,
@@ -108,8 +108,8 @@ def simulate_zmp_walking(
         Multiplexer(input_sizes=[19, 19]),
     )
     # TODO: Use state projection in PID instead of demuxing.
-    kp = 5000.0
-    ki = 5000.0
+    kp = 10000.0
+    ki = 10000.0
     kd = 1.0
     kp = np.full(19, kp)
     ki = np.full(19, ki)
