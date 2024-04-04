@@ -15,7 +15,6 @@ from pydrake.systems.primitives import (
     StateInterpolatorWithDiscreteDerivative,
     TrajectorySource,
 )
-from pydrake.trajectories import PiecewisePolynomial
 from pydrake.visualization import AddDefaultVisualization
 
 from algorithms.zmp.ik_planners import solve_straight_line_walking

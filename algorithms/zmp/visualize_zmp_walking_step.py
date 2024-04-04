@@ -12,7 +12,6 @@ from common.drake_utils import auto_meshcat_visualization
 from common.model_utils import LeggedModelType, add_legged_model_to_plant_and_finalize
 
 
-# TODO: Move out.
 class TimeSpacedPositions(LeafSystem):
     def __init__(
         self,
@@ -60,7 +59,7 @@ def visualize_zmp_walking_step(
     positions_traj: PiecewisePolynomial = solve_straight_line_walking(
         legged_model_type=legged_model_type,
         plant_time_step=plant_time_step,
-        path_length=1.5,
+        path_length=2.5,
         ik_sample_time=0.05,
     )
     positions = positions_traj.vector_values(
@@ -71,7 +70,7 @@ def visualize_zmp_walking_step(
         MultibodyPositionToGeometryPose(plant=plant),
     )
 
-    wait_time = 0.5
+    wait_time = 0.1
     time_spaced_positions = builder.AddSystem(
         TimeSpacedPositions(
             plant=plant,

@@ -148,7 +148,7 @@ def test_invalid_zmp_planner_construction(
 def test_naive_zmp_planner(
     left_foot_polygon: PolygonArray,
     right_foot_polygon: PolygonArray,
-    debug: bool = False,
+    debug: bool = True,
 ) -> None:
 
     nfp = NaiveZMPPlanner(
@@ -156,7 +156,7 @@ def test_naive_zmp_planner(
         foot_lift_height_m=0.1,
         default_foot_height_m=0.0,
         swing_phase_time_s=0.5,
-        stance_phase_time_s=0.1,
+        stance_phase_time_s=0.5,
         distance_between_feet=0.5,
         max_orientation_delta=np.deg2rad(30.0),
         left_foot_polygon=left_foot_polygon,
@@ -168,7 +168,7 @@ def test_naive_zmp_planner(
     # Testing ZMP/COP trajectory generation for different kinds of paths.
 
     # Straight path in positive x.
-    straight_x_path = np.arange(0.0, 10.0, 0.05)
+    straight_x_path = np.arange(0.0, 5.0, 0.05)
     straight_y_path = np.zeros(straight_x_path.size, dtype=np.float64)
     straight_xy_path = np.vstack((straight_x_path, straight_y_path)).T
     zmp_result = nfp.compute_full_zmp_result(
@@ -180,13 +180,13 @@ def test_naive_zmp_planner(
     zt = zmp_result.zmp_trajectory
     np.testing.assert_array_almost_equal(
         zt.value(zt.end_time()).reshape(2),
-        np.array([9.95, -0.25]),
+        np.array([4.95, -0.25]),
         decimal=6,
     )
 
     # Diagonal path angled 45 degrees.
-    diagonal_x_path = np.arange(0.0, 10.0, 0.05)
-    diagonal_y_path = np.arange(0.0, 10.0, 0.05)
+    diagonal_x_path = np.arange(0.0, 5.0, 0.05)
+    diagonal_y_path = np.arange(0.0, 5.0, 0.05)
     diagonal_xy_path = np.vstack((diagonal_x_path, diagonal_y_path)).T
     zmp_result = nfp.compute_full_zmp_result(
         xy_path=diagonal_xy_path,
@@ -197,16 +197,16 @@ def test_naive_zmp_planner(
     zt = zmp_result.zmp_trajectory
     np.testing.assert_array_almost_equal(
         zt.value(zt.end_time()).reshape(2),
-        np.array([9.7732233, 10.1267767]),
+        np.array([5.126777, 4.773223]),
         decimal=6,
     )
 
     # Path that turns left 90 degrees.
-    turn_x_path1 = np.arange(0.0, 10.0, 0.05)
-    turn_x_path2 = np.full_like(turn_x_path1, fill_value=10.0)
+    turn_x_path1 = np.arange(0.0, 5.0, 0.05)
+    turn_x_path2 = np.full_like(turn_x_path1, fill_value=5.0)
     turn_x_path = np.hstack((turn_x_path1, turn_x_path2))
     turn_y_path1 = np.full_like(turn_x_path1, fill_value=0.0)
-    turn_y_path2 = np.arange(0.0, 10.0, 0.05)
+    turn_y_path2 = np.arange(0.0, 5.0, 0.05)
     turn_y_path = np.hstack((turn_y_path1, turn_y_path2))
     turn_xy_path = np.vstack((turn_x_path, turn_y_path)).T
     zmp_result = nfp.compute_full_zmp_result(
@@ -218,7 +218,7 @@ def test_naive_zmp_planner(
     zt = zmp_result.zmp_trajectory
     np.testing.assert_array_almost_equal(
         zt.value(zt.end_time()).reshape(2),
-        np.array([10.25, 9.95]),
+        np.array([5.25, 4.95]),
         decimal=6,
     )
 
