@@ -1,0 +1,26 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "Legged Research"
+version = "0.0.1"
+requires-python = ">=3.10"
+authors = [
+  {name = "Shrenik", email = "shrenik95@gmail.com"},
+]
+description = ""
+readme = "README.md"
+license = {file = "LICENSE"}
+classifiers = [
+]
+
+[tool.black]
+line-length = 88
+
+[tool.isort]
+profile = "black"
+py_version = 38
+skip_gitignore = "True"
+multi_line_output = 3
+line_length = 88

@@ -1,0 +1,3 @@
+[submodule "robot_models"]
+	path = robot_models
+	url = git@github.com:shrenikm/robot_models.git
